@@ -606,7 +606,7 @@ function deleteVendor(id){
 let dbt=null; function debouncedSave(){ clearTimeout(dbt); dbt=setTimeout(save,400); }
 
 /* ----- numeric-only columns: accept digits (one dot for decimals) + warn ----- */
-const VALIDATED_NUM = {weight:'num', stones:'int', cost:'num'};   // משקל, מספר אבנים, עלות לקראט
+const VALIDATED_NUM = {weight:'num', stones:'int', cost:'num', sale:'num'};   // משקל, מספר אבנים, עלות לקראט, מכירה לקראט
 let numToastTimer=null;
 function showNumError(kind){
   let t=$('numToast');
