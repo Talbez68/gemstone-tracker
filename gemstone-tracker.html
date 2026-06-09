@@ -120,6 +120,14 @@
   .del-row:hover{color:var(--danger)}
   td.col-sold input{width:20px; height:20px; cursor:pointer}
   input.num{direction:ltr; text-align:center}
+  input.input-invalid{background:#fde8e6!important; box-shadow:inset 0 0 0 2px var(--danger)!important}
+  #numToast{
+    position:fixed; bottom:26px; left:50%; transform:translateX(-50%);
+    background:var(--danger); color:#fff; padding:13px 22px; border-radius:11px;
+    font-size:17px; font-weight:600; box-shadow:0 6px 20px rgba(0,0,0,.28);
+    opacity:0; pointer-events:none; transition:opacity .2s; z-index:50; max-width:90vw; text-align:center;
+  }
+  #numToast.show{opacity:1}
   tfoot td{background:#f1ede3; font-weight:700; padding:11px 6px; color:var(--accent-d); font-size:16px}
   tfoot .lbl{text-align:left; color:var(--muted)}
 
@@ -154,7 +162,7 @@
   @media print{
     body{background:#fff; font-size:12px}
     header,.tripbar,.tabs,.toolbar,.vendor-actions,.add-row-bar,.settings,
-    details.help,.del-row,.tab-add,.col-del{display:none!important}
+    details.help,.del-row,.tab-add,.col-del,#numToast{display:none!important}
     main{padding:0}
     .panel{border:none; box-shadow:none; border-radius:0; padding:0}
     thead th{position:static}
@@ -418,8 +426,15 @@ function buildRow(v,r,i){
       inp.oninput=()=>{ r.shape=inp.value; debouncedSave(); }; td.appendChild(inp);
     }else{
       const inp=document.createElement('input'); inp.value=r[c.key]??'';
-      if(c.type==='num'||c.type==='int'){ inp.className='num'; inp.inputMode='decimal'; }
+      const numKind=VALIDATED_NUM[c.key];          // 'num' (decimal) | 'int' | undefined
+      if(c.type==='num'||c.type==='int'){ inp.className='num'; inp.inputMode=c.type==='int'?'numeric':'decimal'; }
+      if(numKind) inp._last=inp.value;
       inp.oninput=()=>{
+        if(numKind){
+          const ok=(numKind==='int'?/^\d*$/:/^\d*\.?\d*$/).test(inp.value);
+          if(!ok){ inp.value=inp._last||''; flashInvalid(inp); showNumError(numKind); return; }
+          inp._last=inp.value; inp.classList.remove('input-invalid');
+        }
         r[c.key]=inp.value;
         if(c.key==='weight'||c.key==='cost'||c.key==='sale') updateAutoCells(tr,r,v);
         debouncedSave();
@@ -589,6 +604,18 @@ function deleteVendor(id){
 }
 
 let dbt=null; function debouncedSave(){ clearTimeout(dbt); dbt=setTimeout(save,400); }
+
+/* ----- numeric-only columns: accept digits (one dot for decimals) + warn ----- */
+const VALIDATED_NUM = {weight:'num', stones:'int', cost:'num'};   // משקל, מספר אבנים, עלות לקראט
+let numToastTimer=null;
+function showNumError(kind){
+  let t=$('numToast');
+  if(!t){ t=document.createElement('div'); t.id='numToast'; document.body.appendChild(t); }
+  t.textContent = kind==='int' ? '⚠️ יש להזין מספר שלם בלבד (ספרות, ללא נקודה)' : '⚠️ יש להזין מספר בלבד';
+  t.classList.add('show');
+  clearTimeout(numToastTimer); numToastTimer=setTimeout(()=>t.classList.remove('show'),2200);
+}
+function flashInvalid(inp){ inp.classList.add('input-invalid'); setTimeout(()=>inp.classList.remove('input-invalid'),700); }
 
 /* ----- export current trip to CSV (Excel, UTF-8 BOM) ----- */
 function exportCSV(){
