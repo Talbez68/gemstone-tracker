@@ -300,6 +300,9 @@
       <label class="menu-item" style="cursor:pointer" title="טעינת קובץ גיבוי שנשמר קודם. שימו לב: הפעולה דורסת את כל הנתונים הקיימים כעת באפליקציה.">↺ שחזור גיבוי
         <input type="file" accept=".json" onchange="restoreJSON(event)" style="display:none">
       </label>
+      <label class="menu-item" style="cursor:pointer" title="ייבוא נסיעה ישנה מקובץ אקסל (.xlsx) של התבנית הישנה. נוספת כנסיעה חדשה בלי לדרוס כלום.">📥 ייבוא מאקסל ישן
+        <input type="file" accept=".xlsx" onchange="importXLSX(event)" style="display:none">
+      </label>
     </div>
     <div class="menu-section">
       <div class="menu-title">סנכרון בענן</div>
@@ -790,6 +793,109 @@ function restoreJSON(ev){
     }catch(e){ alert('הקובץ אינו גיבוי תקין.'); }
   };
   rd.readAsText(f); ev.target.value='';
+}
+
+/* ============================================================
+   IMPORT an old Excel (.xlsx) travel — zero dependencies.
+   .xlsx is a ZIP of XML; we read the central directory, inflate
+   entries with the browser's DecompressionStream, and parse the
+   worksheets. Adds the file as a new trip (never overwrites).
+   ============================================================ */
+function zipIndex(buf){
+  const dv=new DataView(buf.buffer); let eocd=-1;
+  for(let i=buf.length-22; i>=0 && i>buf.length-22-65536; i--){ if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; } }
+  if(eocd<0) throw new Error('not-zip');
+  const cdOff=dv.getUint32(eocd+16,true), count=dv.getUint16(eocd+10,true);
+  const td=new TextDecoder('utf-8'), entries={}; let p=cdOff;
+  for(let n=0;n<count;n++){
+    if(dv.getUint32(p,true)!==0x02014b50) break;
+    const method=dv.getUint16(p+10,true), compSize=dv.getUint32(p+20,true);
+    const nameLen=dv.getUint16(p+28,true), extraLen=dv.getUint16(p+30,true), commentLen=dv.getUint16(p+32,true);
+    const localOff=dv.getUint32(p+42,true);
+    const name=td.decode(buf.subarray(p+46,p+46+nameLen));
+    entries[name]={method,compSize,localOff}; p+=46+nameLen+extraLen+commentLen;
+  }
+  return {dv,buf,entries};
+}
+async function zipRead(zip,name){
+  const e=zip.entries[name]; if(!e) return null;
+  const {dv,buf}=zip, lh=e.localOff;
+  if(dv.getUint32(lh,true)!==0x04034b50) throw new Error('bad-local');
+  const nameLen=dv.getUint16(lh+26,true), extraLen=dv.getUint16(lh+28,true);
+  const start=lh+30+nameLen+extraLen, comp=buf.subarray(start,start+e.compSize);
+  if(e.method===0) return comp;
+  if(e.method===8){
+    const s=new Blob([comp]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(s).arrayBuffer());
+  }
+  throw new Error('zip-method-'+e.method);
+}
+const VENDOR_HE={elul:'אלול',pink:'פינק',gemesis:'גמסיס',gemsis:'גמסיס',eran:'ערן'};
+function cellText(c,ss){
+  const t=c.getAttribute('t');
+  if(t==='inlineStr'){ const tt=c.getElementsByTagName('t')[0]; return tt?tt.textContent:''; }
+  const v=c.getElementsByTagName('v')[0]; if(!v) return '';
+  const raw=v.textContent;
+  if(t==='s') return ss[parseInt(raw,10)]||'';
+  if(t==='b') return raw==='1'?'TRUE':'';
+  return raw;
+}
+function isSold(v){ return /^(true|1|כן|v|✓|x|yes)$/i.test((v||'').trim()); }
+async function importXLSX(ev){
+  const file=ev.target.files[0]; ev.target.value=''; if(!file) return;
+  if(!window.DecompressionStream){ alert('הדפדפן הזה לא תומך בייבוא. נסו ב‑Chrome או Edge מעודכנים.'); return; }
+  try{
+    const zip=zipIndex(new Uint8Array(await file.arrayBuffer()));
+    const td=new TextDecoder('utf-8');
+    const xml=async n=>{ const b=await zipRead(zip,n); return b?new DOMParser().parseFromString(td.decode(b),'application/xml'):null; };
+    const ssDoc=await xml('xl/sharedStrings.xml');
+    const ss=ssDoc?[...ssDoc.getElementsByTagName('si')].map(si=>[...si.getElementsByTagName('t')].map(t=>t.textContent).join('')):[];
+    const wb=await xml('xl/workbook.xml'); const rels=await xml('xl/_rels/workbook.xml.rels');
+    if(!wb||!rels) throw new Error('no-workbook');
+    const relMap={}; [...rels.getElementsByTagName('Relationship')].forEach(r=>relMap[r.getAttribute('Id')]=r.getAttribute('Target'));
+    const sheets=[...wb.getElementsByTagName('sheet')].map(s=>({name:s.getAttribute('name'),
+      rid:s.getAttribute('r:id')||s.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id')}));
+    const vendors=[];
+    for(const sh of sheets){
+      if(/^(main|סיכום|summary)/i.test(sh.name.trim())) continue;     // skip the summary sheet
+      let tgt=relMap[sh.rid]; if(!tgt) continue;
+      tgt=tgt.replace(/^\/?xl\//,'').replace(/^\//,''); const wsDoc=await xml('xl/'+tgt);
+      if(!wsDoc) continue;
+      // build rows -> {colLetter: text}
+      const rows=[...wsDoc.getElementsByTagName('row')].map(r=>{
+        const m={}; [...r.getElementsByTagName('c')].forEach(c=>{ const ref=c.getAttribute('r')||''; m[ref.replace(/[0-9]/g,'')]=cellText(c,ss); }); return m;
+      });
+      // find header row (contains מספר + סריה), map label -> column letter
+      let col=null;
+      for(const m of rows){ const vals=Object.values(m);
+        if(vals.includes('מספר')&&vals.includes('סריה')){ col={}; for(const k in m) col[m[k].trim()]=k; break; } }
+      if(!col) continue;
+      const get=(m,label)=>{ const k=col[label]; return k?(m[k]||'').trim():''; };
+      const headerLabels=Object.keys(col);
+      const dataRows=[];
+      let seenHeader=false;
+      for(const m of rows){
+        const vals=Object.values(m).map(x=>x.trim());
+        if(!seenHeader){ if(vals.includes('מספר')&&vals.includes('סריה')) seenHeader=true; continue; }
+        const weight=get(m,'משקל'),stones=get(m,'מספר אבנים'),shape=get(m,'צורה'),
+          cost=get(m,'עלות לקראט'),notes=get(m,'הערות'),sale=get(m,'מכירה לקראט'),
+          serial=get(m,'סריה'),sold=get(m,'נמכר');
+        const real=[weight,stones,cost,sale].some(v=>parseFloat(v)>0);   // a real entry has numeric data
+        if(!real) continue;
+        dataRows.push({serial,weight:weight&&parseFloat(weight)?weight:'',stones:stones&&parseFloat(stones)?stones:'',
+          shape,cost:cost&&parseFloat(cost)?cost:'',notes:notes==='0'?'':notes,sale:sale&&parseFloat(sale)?sale:'',sold:isSold(sold)});
+      }
+      const vname=VENDOR_HE[sh.name.trim().toLowerCase()]||sh.name.trim();
+      vendors.push({id:rid('v'),name:vname,rows:dataRows.length?dataRows:[blankRow()]});
+    }
+    if(!vendors.length){ alert('לא נמצאו לשוניות ספקים מתאימות בקובץ.'); return; }
+    const base=file.name.replace(/\.xlsx$/i,'');
+    const name=prompt('שם הנסיעה המיובאת:', base||'נסיעה מיובאת'); if(name===null) return;
+    const t={id:rid('t'),name:name.trim()||base||'נסיעה מיובאת',date:today(),activeId:vendors[0].id,vendors};
+    state.trips.push(t); state.activeTripId=t.id; save(); render(); showView('tracker');
+    const totalRows=vendors.reduce((s,v)=>s+v.rows.filter(hasData).length,0);
+    alert('יובאה נסיעה "'+t.name+'" עם '+vendors.length+' ספקים ו‑'+totalRows+' שורות נתונים ✓');
+  }catch(e){ alert('הקובץ אינו תבנית אקסל נתמכת. ודאו שזהו קובץ .xlsx של התבנית הישנה.\n('+(e&&e.message||e)+')'); }
 }
 
 function download(content,name,type){
