@@ -222,6 +222,17 @@
   }
 
   /* ---------- Usage guide ---------- */
+  .history-view{padding:6px 4px 60px}
+  .hist-table{border-collapse:collapse; width:100%; font-size:15px; margin-top:10px}
+  .hist-table th,.hist-table td{border:1px solid var(--line); padding:11px 10px; text-align:center}
+  .hist-table thead th{background:var(--soft); color:var(--accent-d); font-weight:700; position:static; font-size:14px}
+  .hist-table tbody tr:nth-child(even){background:#fbfaf6}
+  .hist-table .h-name{text-align:right; font-weight:700; color:var(--accent-d)}
+  .hist-table .auto{background:var(--auto); font-weight:700; color:var(--accent-d)}
+  .hist-table .h-profit{font-weight:800; color:var(--gold)}
+  .hist-table tr.hist-active{background:var(--sold)!important}
+  .h-badge{background:var(--accent); color:#fff; font-size:11px; padding:2px 8px; border-radius:8px; font-weight:600; margin-right:6px}
+  .hist-foot td{background:#f1ede3; font-weight:800; color:var(--accent-d)}
   .guide-view{padding:6px 4px 60px; max-width:900px; margin:0 auto}
   .guide-hero{background:linear-gradient(135deg,#0f7b6c,#3d4a8a); color:#fff; border-radius:16px;
     padding:26px; margin:14px 0 26px; display:flex; gap:24px; align-items:center; flex-wrap:wrap;
@@ -274,8 +285,9 @@
   <aside class="sidemenu" id="sideMenu">
     <div class="menu-section">
       <div class="menu-title">ניווט</div>
-      <button class="menu-item active" id="navTracker" onclick="showGuide(false)">🏠 מסך המעקב</button>
-      <button class="menu-item guide" id="navGuide" onclick="showGuide(true)">📖 מדריך שימוש</button>
+      <button class="menu-item active" id="navTracker" onclick="showView('tracker')">🏠 מסך המעקב</button>
+      <button class="menu-item" id="navHistory" onclick="showView('history')">🧳 היסטוריית נסיעות</button>
+      <button class="menu-item guide" id="navGuide" onclick="showView('guide')">📖 מדריך שימוש</button>
     </div>
     <div class="menu-section">
       <div class="menu-title">פעולות</div>
@@ -308,6 +320,7 @@
 
     <div class="tabs" id="tabs"></div>
     <main id="main"></main>
+    <section class="history-view" id="historyView" style="display:none"></section>
     <section class="guide-view" id="guideView" style="display:none"></section>
   </div>
 </div>
@@ -883,17 +896,66 @@ function toggleMenu(force){
   document.body.classList.toggle('menu-open', open);
 }
 let guideBuilt=false;
-function showGuide(on){
-  const g=$('guideView');
-  if(on && !guideBuilt){ buildGuide(); guideBuilt=true; }
-  g.style.display = on ? 'block' : 'none';
-  document.querySelector('.tripbar').style.display = on ? 'none' : '';
-  $('tabs').style.display = on ? 'none' : '';
-  $('main').style.display = on ? 'none' : '';
-  $('navGuide').classList.toggle('active', on);
-  $('navTracker').classList.toggle('active', !on);
+function showView(view){            // 'tracker' | 'history' | 'guide'
+  const isTracker = view==='tracker';
+  document.querySelector('.tripbar').style.display = isTracker ? '' : 'none';
+  $('tabs').style.display = isTracker ? '' : 'none';
+  $('main').style.display = isTracker ? '' : 'none';
+  if(view==='guide' && !guideBuilt){ buildGuide(); guideBuilt=true; }
+  $('guideView').style.display = view==='guide' ? 'block' : 'none';
+  if(view==='history') buildHistory();          // always rebuilt – data is live
+  $('historyView').style.display = view==='history' ? 'block' : 'none';
+  $('navTracker').classList.toggle('active', isTracker);
+  $('navHistory').classList.toggle('active', view==='history');
+  $('navGuide').classList.toggle('active', view==='guide');
   toggleMenu(false);
   window.scrollTo(0,0);
+}
+function showGuide(on){ showView(on ? 'guide' : 'tracker'); }
+function openTrip(id){ state.activeTripId=id; save(); render(); showView('tracker'); }
+function buildHistory(){
+  const trips=[...state.trips].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  let gCost=0,gSale=0,gSold=0;
+  const body = trips.map(t=>{
+    let cost=0,sale=0,sold=0,rowsN=0,vendorsN=0;
+    t.vendors.forEach(v=>{
+      const dr=v.rows.filter(hasData);
+      if(dr.length) vendorsN++;
+      dr.forEach(r=>{ cost+=rowCost(r); sale+=rowSale(r); if(r.sold) sold+=rowSale(r); rowsN++; });
+    });
+    gCost+=cost; gSale+=sale; gSold+=sold;
+    const act = t.id===state.activeTripId;
+    return `<tr class="${act?'hist-active':''}">
+      <td class="h-name">${escapeHtml(t.name)}${act?' <span class="h-badge">פתוחה</span>':''}</td>
+      <td>${t.date||'—'}</td><td>${vendorsN}</td><td>${rowsN}</td>
+      <td class="auto">${fmtMoney(cost)}</td><td class="auto">${fmtMoney(sale)}</td>
+      <td>${fmtMoney(sold)}</td><td class="h-profit">${fmtMoney(sale-cost)}</td>
+      <td><button class="btn btn-sm btn-outline" onclick="openTrip('${t.id}')">פתח ↩</button></td>
+    </tr>`;
+  }).join('');
+  $('historyView').innerHTML = `
+    <div class="panel">
+      <div class="vendor-head"><h2>🧳 היסטוריית נסיעות</h2>
+        <span class="meta">${trips.length} נסיעות בסך הכול</span></div>
+      <table class="hist-table">
+        <thead><tr>
+          <th>נסיעה</th><th>תאריך</th><th>ספקים</th><th>שורות</th>
+          <th>סה"כ עלות</th><th>סה"כ מכירה</th><th>נמכר בפועל</th><th>רווח</th><th></th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot class="hist-foot"><tr>
+          <td class="h-name">סה"כ כל הנסיעות</td><td></td><td></td><td></td>
+          <td>${fmtMoney(gCost)}</td><td>${fmtMoney(gSale)}</td><td>${fmtMoney(gSold)}</td>
+          <td class="h-profit">${fmtMoney(gSale-gCost)}</td><td></td>
+        </tr></tfoot>
+      </table>
+      <div class="totals" style="margin-top:18px">
+        <div class="card"><div class="k">סה"כ עלות (כל הנסיעות)</div><div class="v">${fmtMoney(gCost)}</div></div>
+        <div class="card"><div class="k">סה"כ מכירה (פוטנציאל)</div><div class="v">${fmtMoney(gSale)}</div></div>
+        <div class="card"><div class="k">נמכר בפועל</div><div class="v">${fmtMoney(gSold)}</div></div>
+        <div class="card profit"><div class="k">רווח כולל</div><div class="v">${fmtMoney(gSale-gCost)}</div></div>
+      </div>
+    </div>`;
 }
 function dadFallback(img,kind){
   const span=document.createElement('span');
