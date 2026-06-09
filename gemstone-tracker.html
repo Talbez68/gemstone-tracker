@@ -185,10 +185,10 @@
 <header>
   <h1><span class="gem">💎</span> מעקב אבני חן</h1>
   <div class="toolbar">
-    <button class="btn btn-light" onclick="window.print()">🖨️ הדפסה / שמירה כ‑PDF</button>
-    <button class="btn btn-ghost" onclick="exportCSV()">⬇️ ייצוא לאקסל</button>
-    <button class="btn btn-ghost" onclick="backupJSON()">💾 גיבוי הכל</button>
-    <label class="btn btn-ghost" style="cursor:pointer">↺ שחזור גיבוי
+    <button class="btn btn-light" onclick="window.print()" title="הדפסת הטבלה או שמירתה כקובץ PDF. בחלון ההדפסה בוחרים את היעד 'שמירה כ‑PDF'.">🖨️ הדפסה / שמירה כ‑PDF</button>
+    <button class="btn btn-ghost" onclick="exportCSV()" title="ייצוא הנתונים של המסע הנוכחי לקובץ אקסל (CSV) שנפתח באקסל, כולל עברית. מתאים לצפייה – לא לטעינה חזרה לאפליקציה.">⬇️ ייצוא לאקסל</button>
+    <button class="btn btn-ghost" onclick="backupJSON()" title="שמירת גיבוי מלא של כל המסעות והנתונים לקובץ אחד במחשב. כדאי לעשות מדי פעם, וגם כדי להעביר את הכול למחשב אחר.">💾 גיבוי הכל</button>
+    <label class="btn btn-ghost" style="cursor:pointer" title="טעינת קובץ גיבוי שנשמר קודם. שימו לב: הפעולה דורסת את כל הנתונים הקיימים כעת באפליקציה.">↺ שחזור גיבוי
       <input type="file" accept=".json" onchange="restoreJSON(event)" style="display:none">
     </label>
   </div>
@@ -200,13 +200,13 @@
 <!-- Trip / business-travel selector -->
 <div class="tripbar">
   <span class="lead">📁 מסע נסיעה:</span>
-  <select id="tripSelect"></select>
+  <select id="tripSelect" title="בחירת המסע שמוצג כעת. כל נסיעה היא מסע נפרד שנשמר לתמיד."></select>
   <input type="date" id="tripDate" title="תאריך המסע">
   <div class="tbtns">
-    <button class="btn btn-sm btn-trip" onclick="addTrip()">➕ מסע חדש</button>
-    <button class="btn btn-sm btn-trip" onclick="duplicateTrip()">⧉ שכפל מסע</button>
-    <button class="btn btn-sm btn-trip" onclick="renameTrip()">✏️ שנה שם</button>
-    <button class="btn btn-sm btn-trip" onclick="deleteTrip()">🗑️ מחק מסע</button>
+    <button class="btn btn-sm btn-trip" onclick="addTrip()" title="פתיחת מסע נסיעה חדש וריק, עם ספקי ברירת המחדל.">➕ מסע חדש</button>
+    <button class="btn btn-sm btn-trip" onclick="duplicateTrip()" title="יצירת עותק של המסע הנוכחי – אפשר להעתיק רק את שמות הספקים, או גם את כל הנתונים.">⧉ שכפל מסע</button>
+    <button class="btn btn-sm btn-trip" onclick="renameTrip()" title="שינוי השם של המסע הנוכחי.">✏️ שנה שם</button>
+    <button class="btn btn-sm btn-trip" onclick="deleteTrip()" title="מחיקת המסע הנוכחי וכל הנתונים שבו. אי אפשר לבטל – כדאי קודם ללחוץ 'גיבוי הכל'.">🗑️ מחק מסע</button>
   </div>
 </div>
 
@@ -327,16 +327,19 @@ function renderTabs(){
     const b=document.createElement('button');
     b.className='tab'+(v.id===trip.activeId?' active':'');
     b.textContent=v.name;
+    b.title='פתיחת הטבלה של הספק "'+v.name+'".';
     b.onclick=()=>{ trip.activeId=v.id; save(); render(); };
     t.appendChild(b);
   });
   const add=document.createElement('button');
   add.className='tab-add'; add.textContent='➕ ספק חדש';
+  add.title='הוספת לשונית של ספק חדש למסע הנוכחי.';
   add.onclick=addVendor; t.appendChild(add);
 
   const sum=document.createElement('button');
   sum.className='tab summary'+(trip.activeId==='__summary__'?' active':'');
   sum.textContent='📊 סיכום כל הספקים'; sum.style.marginRight='auto';
+  sum.title='תצוגת סיכום שמרכזת את כל הספקים יחד – כמו הגיליון "Main" באקסל.';
   sum.onclick=()=>{ trip.activeId='__summary__'; save(); render(); };
   t.appendChild(sum);
 }
@@ -361,8 +364,8 @@ function buildVendor(trip,v){
   head.innerHTML=`<h2>${escapeHtml(v.name)}</h2><span class="meta">${v.rows.length} שורות</span>`;
   const act=document.createElement('div'); act.className='vendor-actions';
   act.innerHTML=`
-    <button class="btn btn-sm btn-outline" onclick="renameVendor('${v.id}')">✏️ שנה שם</button>
-    <button class="btn btn-sm btn-danger" onclick="deleteVendor('${v.id}')">🗑️ מחק ספק</button>`;
+    <button class="btn btn-sm btn-outline" onclick="renameVendor('${v.id}')" title="שינוי שם הספק.">✏️ שנה שם</button>
+    <button class="btn btn-sm btn-danger" onclick="deleteVendor('${v.id}')" title="מחיקת הספק וכל השורות שלו. אי אפשר לבטל.">🗑️ מחק ספק</button>`;
   head.appendChild(act); wrap.appendChild(head);
 
   const table=document.createElement('table');
@@ -374,6 +377,7 @@ function buildVendor(trip,v){
 
   const bar=document.createElement('div'); bar.className='add-row-bar';
   const addBtn=document.createElement('button'); addBtn.className='btn btn-add'; addBtn.textContent='➕ הוסף שורה';
+  addBtn.title='הוספת שורה ריקה חדשה לתחתית הטבלה.';
   addBtn.onclick=()=>{ v.rows.push(blankRow()); save(); renderMain(); };
   bar.appendChild(addBtn);
   bar.insertAdjacentHTML('beforeend','<span class="hint">טיפ: צריך רק למלא משקל ועלות לקראט – הסה"כ מחושב לבד.</span>');
@@ -383,6 +387,7 @@ function buildVendor(trip,v){
 
   const set=document.createElement('div'); set.className='settings'; set.innerHTML='מטבע: ';
   const sel=document.createElement('select');
+  sel.title='בחירת מטבע התצוגה. משפיע על כל הסכומים בכל המסעות.';
   ['$','₪','€','£'].forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;if(c===state.currency)o.selected=true;sel.appendChild(o);});
   sel.onchange=()=>{ state.currency=sel.value; save(); renderMain(); };
   set.appendChild(sel); wrap.appendChild(set);
@@ -445,7 +450,7 @@ function buildRow(v,r,i){
   });
 
   const tdDel=document.createElement('td'); tdDel.className='col-del';
-  const del=document.createElement('button'); del.className='del-row'; del.title='מחק שורה'; del.textContent='🗑';
+  const del=document.createElement('button'); del.className='del-row'; del.title='מחיקת השורה הזו מהטבלה.'; del.textContent='🗑';
   del.onclick=()=>{ if(v.rows.length===1){ v.rows[0]=blankRow(); } else { v.rows.splice(i,1); } save(); renderMain(); };
   tdDel.appendChild(del); tr.appendChild(tdDel);
   return tr;
@@ -746,18 +751,18 @@ function renderSyncUI(status){
   if(syncHandle && !syncNeedsReconnect){
     const dot = status==='error' ? '⚠️' : '🔗';
     const name = (syncHandle.name||'gemstones.json');
-    el.innerHTML=`<span class="sync-chip">${dot} מסונכרן: <b>${escapeHtml(name)}</b></span>`;
-    const d=document.createElement('button'); d.className='btn btn-ghost btn-sm'; d.textContent='נתק'; d.onclick=disconnectSync;
+    el.innerHTML=`<span class="sync-chip" title="הנתונים נשמרים אוטומטית לקובץ הזה. שמירה בתיקיית OneDrive/Drive מסנכרנת בין מחשבים.">${dot} מסונכרן: <b>${escapeHtml(name)}</b></span>`;
+    const d=document.createElement('button'); d.className='btn btn-ghost btn-sm'; d.textContent='נתק'; d.title='ניתוק הסנכרון לקובץ. הנתונים יישארו שמורים במחשב.'; d.onclick=disconnectSync;
     el.appendChild(d);
   }else if(syncHandle && syncNeedsReconnect){
     el.innerHTML=`<span class="sync-chip">🔌 מנותק</span>`;
     banner.style.display='flex';
     banner.innerHTML='⚠️ יש קובץ סנכרון מחובר. לחצו כדי להתחבר מחדש ולטעון את הנתונים העדכניים.';
-    const b=document.createElement('button'); b.className='btn btn-amber'; b.textContent='🔗 התחבר מחדש'; b.onclick=reconnectSync;
+    const b=document.createElement('button'); b.className='btn btn-amber'; b.textContent='🔗 התחבר מחדש'; b.title='התחברות מחדש לקובץ הסנכרון וטעינת הנתונים העדכניים ממנו.'; b.onclick=reconnectSync;
     banner.appendChild(b);
   }else{
-    const b1=document.createElement('button'); b1.className='btn btn-ghost'; b1.textContent='🔗 חבר קובץ נתונים'; b1.onclick=connectNewFile;
-    const b2=document.createElement('button'); b2.className='btn btn-ghost'; b2.textContent='📂 פתח קובץ קיים'; b2.onclick=connectExistingFile;
+    const b1=document.createElement('button'); b1.className='btn btn-ghost'; b1.textContent='🔗 חבר קובץ נתונים'; b1.title='יצירת קובץ נתונים (למשל בתיקיית OneDrive/Google Drive) – ומעכשיו הכל נשמר אליו אוטומטית ומסונכרן בין מחשבים.'; b1.onclick=connectNewFile;
+    const b2=document.createElement('button'); b2.className='btn btn-ghost'; b2.textContent='📂 פתח קובץ קיים'; b2.title='פתיחת קובץ נתונים קיים (למשל כזה שכבר מסונכרן) וטעינת הנתונים ממנו.'; b2.onclick=connectExistingFile;
     el.appendChild(b1); el.appendChild(b2);
   }
 }
