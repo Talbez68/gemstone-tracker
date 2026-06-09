@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מעקב אבני חן</title>
+<style>
+  :root{
+    --bg:#f4f1ea; --panel:#ffffff; --ink:#2b2b2b; --muted:#7a7468;
+    --line:#e3ddd0; --accent:#0f7b6c; --accent-d:#0a5c50;
+    --gold:#b8932f; --soft:#faf8f3; --danger:#c0392b;
+    --auto:#eef6f4; --sold:#fff7e6; --trip:#3d4a8a; --trip-d:#2c376b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:"Segoe UI","Arial Hebrew",Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:17px; line-height:1.4;
+  }
+  /* ---------- Top bar ---------- */
+  header{
+    background:var(--accent); color:#fff; padding:14px 20px;
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+    box-shadow:0 2px 8px rgba(0,0,0,.12);
+  }
+  header h1{font-size:22px; margin:0; font-weight:700; display:flex; align-items:center; gap:10px}
+  header h1 .gem{font-size:24px}
+  .toolbar{margin-right:auto; display:flex; gap:10px; flex-wrap:wrap}
+  .btn{
+    border:none; border-radius:10px; padding:11px 16px; font-size:16px;
+    cursor:pointer; font-family:inherit; font-weight:600; transition:.12s;
+    display:inline-flex; align-items:center; gap:7px;
+  }
+  .btn:hover{transform:translateY(-1px)}
+  .btn-light{background:#fff; color:var(--accent-d)}
+  .btn-ghost{background:rgba(255,255,255,.18); color:#fff}
+  .btn-ghost:hover{background:rgba(255,255,255,.3)}
+  .saved{font-size:14px; color:#d8f0eb; opacity:0; transition:.3s; white-space:nowrap}
+  .saved.show{opacity:1}
+  /* sync UI */
+  #syncUI{display:flex; gap:8px; align-items:center}
+  .sync-chip{display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.16);
+    color:#fff; padding:7px 12px; border-radius:9px; font-size:14px; font-weight:600}
+  .sync-chip b{font-weight:700}
+  .syncbanner{background:#fff4d6; color:#7a5b00; border-bottom:1px solid #e6cf8a;
+    padding:10px 20px; font-size:15px; display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+  .syncbanner .btn{padding:8px 14px; font-size:14px}
+  .btn-amber{background:var(--gold); color:#fff}
+
+  /* ---------- Trip bar ---------- */
+  .tripbar{
+    background:var(--trip); color:#fff; padding:11px 20px;
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  }
+  .tripbar .lead{font-weight:700; font-size:16px; display:flex; align-items:center; gap:8px}
+  .tripbar select{
+    font-family:inherit; font-size:16px; font-weight:600; padding:8px 12px;
+    border-radius:9px; border:none; background:#fff; color:var(--trip-d); min-width:230px; cursor:pointer;
+  }
+  .tripbar input[type=date]{
+    font-family:inherit; font-size:15px; padding:7px 10px; border-radius:9px; border:none;
+  }
+  .tripbar .tbtns{margin-right:auto; display:flex; gap:8px; flex-wrap:wrap}
+  .btn-trip{background:rgba(255,255,255,.18); color:#fff}
+  .btn-trip:hover{background:rgba(255,255,255,.32)}
+
+  /* ---------- Vendor tabs ---------- */
+  .tabs{
+    display:flex; align-items:center; gap:6px; padding:12px 20px 0;
+    flex-wrap:wrap; background:var(--bg); position:sticky; top:0; z-index:5;
+  }
+  .tab{
+    background:#e9e3d6; color:var(--muted); border:1px solid var(--line);
+    border-bottom:none; padding:10px 18px; border-radius:12px 12px 0 0;
+    cursor:pointer; font-size:16px; font-weight:600; position:relative;
+  }
+  .tab.active{background:var(--panel); color:var(--accent-d); box-shadow:0 -2px 6px rgba(0,0,0,.05)}
+  .tab.summary{background:var(--gold); color:#fff; border-color:var(--gold)}
+  .tab.summary.active{background:#9c7d28}
+  .tab-add{background:transparent; border:1px dashed var(--accent); color:var(--accent);
+    border-radius:10px; padding:9px 14px; cursor:pointer; font-size:15px; font-weight:600}
+
+  /* ---------- Sheet panel ---------- */
+  main{padding:0 20px 60px}
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:0 12px 12px 12px;
+    padding:18px; box-shadow:0 4px 14px rgba(0,0,0,.05);
+  }
+  .vendor-head{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px}
+  .vendor-head h2{margin:0; font-size:24px; color:var(--accent-d)}
+  .vendor-head .meta{color:var(--muted); font-size:15px}
+  .vendor-actions{margin-right:auto; display:flex; gap:8px}
+  .btn-sm{padding:7px 12px; font-size:14px; border-radius:8px}
+  .btn-outline{background:#fff; border:1px solid var(--line); color:var(--muted)}
+  .btn-outline:hover{border-color:var(--accent); color:var(--accent)}
+  .btn-danger{background:#fff; border:1px solid #ecc; color:var(--danger)}
+
+  table{border-collapse:collapse; width:100%; font-size:15px}
+  th,td{border:1px solid var(--line); padding:0; text-align:center}
+  thead th{
+    background:var(--soft); color:var(--accent-d); font-weight:700;
+    padding:9px 6px; position:sticky; top:54px; z-index:2; font-size:14px;
+  }
+  .band th{padding:7px; color:#fff; font-size:14px; letter-spacing:.5px}
+  .band-taken th{background:var(--accent)}
+  .band-sales th{background:var(--gold)}
+  .band-tools th{background:#ddd6c7}
+  tbody td input, tbody td select{
+    width:100%; border:none; background:transparent; padding:9px 6px;
+    font-size:15px; font-family:inherit; text-align:center; color:var(--ink);
+    outline:none;
+  }
+  tbody td input:focus, tbody td select:focus{background:#eef6f4; box-shadow:inset 0 0 0 2px var(--accent)}
+  tbody tr:nth-child(even){background:#fbfaf6}
+  tbody td.auto{background:var(--auto); font-weight:700; color:var(--accent-d); padding:9px 6px}
+  tbody tr.is-sold{background:var(--sold)!important}
+  td.col-num{color:var(--muted); font-weight:600; width:42px}
+  td.col-del{width:40px}
+  .del-row{background:none; border:none; cursor:pointer; color:#bbb; font-size:18px; padding:6px}
+  .del-row:hover{color:var(--danger)}
+  td.col-sold input{width:20px; height:20px; cursor:pointer}
+  input.num{direction:ltr; text-align:center}
+  tfoot td{background:#f1ede3; font-weight:700; padding:11px 6px; color:var(--accent-d); font-size:16px}
+  tfoot .lbl{text-align:left; color:var(--muted)}
+
+  .add-row-bar{margin-top:14px; display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+  .btn-add{background:var(--accent); color:#fff; font-size:17px; padding:13px 22px}
+  .hint{color:var(--muted); font-size:14px}
+
+  .totals{display:flex; gap:14px; flex-wrap:wrap; margin-top:18px}
+  .card{flex:1; min-width:170px; background:var(--soft); border:1px solid var(--line);
+    border-radius:12px; padding:14px 16px}
+  .card .k{color:var(--muted); font-size:14px; margin-bottom:4px}
+  .card .v{font-size:24px; font-weight:800; color:var(--accent-d)}
+  .card.profit .v{color:var(--gold)}
+
+  .summary-vendor{margin-bottom:26px}
+  .summary-vendor h3{margin:0 0 6px; font-size:19px; color:var(--accent-d);
+    border-right:4px solid var(--gold); padding-right:10px}
+
+  .empty{text-align:center; color:var(--muted); padding:40px 20px}
+
+  .settings{display:flex; gap:10px; align-items:center; margin-top:18px;
+    color:var(--muted); font-size:14px; flex-wrap:wrap}
+  .settings select{padding:6px 10px; border-radius:8px; border:1px solid var(--line); font-family:inherit}
+
+  details.help{margin:14px 20px 0; background:#fff; border:1px solid var(--line);
+    border-radius:12px; padding:6px 16px}
+  details.help summary{cursor:pointer; font-weight:700; color:var(--accent-d); padding:8px 0; font-size:16px}
+  details.help ol{margin:6px 0 14px; padding-right:22px; line-height:1.7}
+  details.help li b{color:var(--accent-d)}
+
+  /* ---------- print ---------- */
+  @media print{
+    body{background:#fff; font-size:12px}
+    header,.tripbar,.tabs,.toolbar,.vendor-actions,.add-row-bar,.settings,
+    details.help,.del-row,.tab-add,.col-del{display:none!important}
+    main{padding:0}
+    .panel{border:none; box-shadow:none; border-radius:0; padding:0}
+    thead th{position:static}
+    th,td{border:1px solid #999}
+    tbody td input,tbody td select{padding:4px 3px; font-size:12px}
+    .print-only{display:block!important}
+    .totals{margin-top:12px}
+    .card{border:1px solid #999}
+    .summary-vendor{page-break-inside:avoid}
+    @page{margin:1.2cm}
+  }
+  .print-only{display:none}
+  .print-title{text-align:center; margin-bottom:10px}
+  .print-title h2{margin:0; font-size:20px}
+  .print-title .d{color:#666; font-size:13px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="gem">💎</span> מעקב אבני חן</h1>
+  <div class="toolbar">
+    <button class="btn btn-light" onclick="window.print()">🖨️ הדפסה / שמירה כ‑PDF</button>
+    <button class="btn btn-ghost" onclick="exportCSV()">⬇️ ייצוא לאקסל</button>
+    <button class="btn btn-ghost" onclick="backupJSON()">💾 גיבוי הכל</button>
+    <label class="btn btn-ghost" style="cursor:pointer">↺ שחזור גיבוי
+      <input type="file" accept=".json" onchange="restoreJSON(event)" style="display:none">
+    </label>
+  </div>
+  <span id="syncUI"></span>
+  <span class="saved" id="saved">✓ נשמר</span>
+</header>
+<div id="syncBanner" class="syncbanner" style="display:none"></div>
+
+<!-- Trip / business-travel selector -->
+<div class="tripbar">
+  <span class="lead">📁 מסע נסיעה:</span>
+  <select id="tripSelect"></select>
+  <input type="date" id="tripDate" title="תאריך המסע">
+  <div class="tbtns">
+    <button class="btn btn-sm btn-trip" onclick="addTrip()">➕ מסע חדש</button>
+    <button class="btn btn-sm btn-trip" onclick="duplicateTrip()">⧉ שכפל מסע</button>
+    <button class="btn btn-sm btn-trip" onclick="renameTrip()">✏️ שנה שם</button>
+    <button class="btn btn-sm btn-trip" onclick="deleteTrip()">🗑️ מחק מסע</button>
+  </div>
+</div>
+
+<details class="help">
+  <summary>איך משתמשים? (לחצו לפתיחה)</summary>
+  <ol>
+    <li>בפס הכחול למעלה בוחרים <b>מסע נסיעה</b>. כל נסיעה לעבודה היא "מסע" נפרד שנשמר לתמיד – אפשר לחזור אליו ולהדפיס מתי שרוצים.</li>
+    <li>נסיעה חדשה? לוחצים <b>➕ מסע חדש</b>. אפשר גם <b>⧉ לשכפל</b> מסע קודם כדי להתחיל מאותם ספקים.</li>
+    <li>בתוך כל מסע יש <b>לשונית לכל ספק</b>. לוחצים על שם הספק כדי לראות את הטבלה שלו.</li>
+    <li>ממלאים רק: <b>סריה, משקל, מספר אבנים, צורה, עלות לקראט</b> (ואם נמכר – גם מכירה לקראט).</li>
+    <li>העמודות <b>סה"כ עלות</b> ו<b>סה"כ מכירה</b> מחושבות לבד – אין צורך לגעת בהן.</li>
+    <li>צריך עוד שורה? <b>➕ הוסף שורה</b>. ספק חדש? <b>➕ ספק חדש</b>.</li>
+    <li>לשונית <b>סיכום כל הספקים</b> (הצהובה) מרכזת הכל יחד – כמו הגיליון "Main".</li>
+    <li>הכל <b>נשמר אוטומטית</b> במחשב. להדפסה/PDF: <b>🖨️</b>. לאקסל: <b>⬇️</b>. כדאי מדי פעם ללחוץ <b>💾 גיבוי הכל</b>.</li>
+    <li><b>סנכרון ושיתוף:</b> לחיצה על <b>🔗 חבר קובץ נתונים</b> ובחירת קובץ בתוך תיקיית <b>OneDrive / Google Drive</b> – ומעכשיו הכל נשמר אליו ומסונכרן אוטומטית. כך אפשר לפתוח את אותם נתונים גם ממחשב אחר.</li>
+  </ol>
+</details>
+
+<div class="tabs" id="tabs"></div>
+<main id="main"></main>
+
+<script>
+/* ============================================================
+   Gemstone Tracker — single file, offline, Hebrew/RTL.
+   Structure: state -> trips[] (each business travel) -> vendors[] -> rows[]
+   Mirrors original Excel: vendor sheets + "Main" summary, per trip.
+   ============================================================ */
+
+const STORAGE_KEY = 'gemstone-tracker-v2';
+const SHAPES = ['עגול','אובל','טיפה','מרקיזה','אמרלד','כרית','נסיכה','רדיאנט','אסשר','לב','משולש','באגט','קרה (ראף)'];
+
+const COLS = [
+  {key:'serial', label:'סריה',         type:'text'},
+  {key:'weight', label:'משקל',         type:'num'},
+  {key:'stones', label:'מספר אבנים',    type:'int'},
+  {key:'shape',  label:'צורה',          type:'shape'},
+  {key:'cost',   label:'עלות לקראט',    type:'num'},
+  {key:'totCost',label:'סה"כ עלות',     type:'auto'},
+  {key:'notes',  label:'הערות',         type:'text'},
+  {key:'sale',   label:'מכירה לקראט',   type:'num'},
+  {key:'totSale',label:'סה"כ מכירה',    type:'auto'},
+  {key:'sold',   label:'נמכר',          type:'check'},
+];
+
+let state = load();
+
+/* ---------- model ---------- */
+function rid(p){ return p+Math.random().toString(36).slice(2,9); }
+function blankRow(){ return {serial:'',weight:'',stones:'',shape:'',cost:'',notes:'',sale:'',sold:false}; }
+function newVendor(name){ return {id:rid('v'), name, rows:[blankRow()]}; }
+function newTrip(name){
+  const t={id:rid('t'), name, date:today(), activeId:null,
+    vendors:[newVendor('אלול'),newVendor('פינק'),newVendor('גמסיס'),newVendor('ערן')]};
+  t.activeId=t.vendors[0].id; return t;
+}
+function defaultState(){
+  const t=newTrip('מסע ראשון');
+  return {currency:'$', activeTripId:t.id, trips:[t]};
+}
+
+function load(){
+  try{
+    const s=JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if(s && s.trips){ if(!s.activeTripId) s.activeTripId=s.trips[0]?.id; return s; }
+  }catch(e){}
+  // migrate v1 (single workbook, no trips)
+  try{
+    const old=JSON.parse(localStorage.getItem('gemstone-tracker-v1'));
+    if(old && old.vendors){
+      const t={id:rid('t'),name:'מסע מיובא',date:today(),activeId:old.activeId,vendors:old.vendors};
+      if(!t.activeId||t.activeId==='__summary__') t.activeId=t.vendors[0]?.id;
+      return {currency:old.currency||'$', activeTripId:t.id, trips:[t]};
+    }
+  }catch(e){}
+  return defaultState();
+}
+let saveTimer=null;
+function save(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  const el=$('saved'); el.classList.add('show');
+  clearTimeout(saveTimer); saveTimer=setTimeout(()=>el.classList.remove('show'),1200);
+  scheduleSyncWrite();      // also mirror to the linked cloud file, if any
+}
+
+/* ---------- helpers ---------- */
+const $ = id=>document.getElementById(id);
+const cur = ()=>state.currency;
+function num(v){ const n=parseFloat(v); return isFinite(n)?n:0; }
+function fmtMoney(n){ return cur()+' '+(Math.round(n*100)/100).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:2}); }
+function fmtNum(n){ return (Math.round(n*1000)/1000).toLocaleString('en-US'); }
+function rowCost(r){ return num(r.weight)*num(r.cost); }
+function rowSale(r){ return num(r.weight)*num(r.sale); }
+function activeTrip(){ return state.trips.find(t=>t.id===state.activeTripId) || state.trips[0]; }
+function activeVendor(){ const t=activeTrip(); return t.vendors.find(v=>v.id===t.activeId); }
+function tripLabel(t){ return t.name + (t.date? '  ('+t.date+')':''); }
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function render(){ renderTripBar(); renderTabs(); renderMain(); }
+
+function renderTripBar(){
+  const sel=$('tripSelect'); sel.innerHTML='';
+  const sorted=[...state.trips].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  sorted.forEach(t=>{
+    const o=document.createElement('option'); o.value=t.id; o.textContent=tripLabel(t);
+    if(t.id===state.activeTripId) o.selected=true; sel.appendChild(o);
+  });
+  sel.onchange=()=>{ state.activeTripId=sel.value; save(); render(); };
+  const t=activeTrip();
+  const dt=$('tripDate'); dt.value=t.date||'';
+  dt.onchange=()=>{ t.date=dt.value; save(); renderTripBar(); };
+}
+
+function renderTabs(){
+  const t=$('tabs'); t.innerHTML=''; const trip=activeTrip();
+  trip.vendors.forEach(v=>{
+    const b=document.createElement('button');
+    b.className='tab'+(v.id===trip.activeId?' active':'');
+    b.textContent=v.name;
+    b.onclick=()=>{ trip.activeId=v.id; save(); render(); };
+    t.appendChild(b);
+  });
+  const add=document.createElement('button');
+  add.className='tab-add'; add.textContent='➕ ספק חדש';
+  add.onclick=addVendor; t.appendChild(add);
+
+  const sum=document.createElement('button');
+  sum.className='tab summary'+(trip.activeId==='__summary__'?' active':'');
+  sum.textContent='📊 סיכום כל הספקים'; sum.style.marginRight='auto';
+  sum.onclick=()=>{ trip.activeId='__summary__'; save(); render(); };
+  t.appendChild(sum);
+}
+
+function renderMain(){
+  const m=$('main'); const trip=activeTrip();
+  if(trip.activeId==='__summary__'){ m.innerHTML=''; m.appendChild(buildSummary(trip)); return; }
+  let v=activeVendor();
+  if(!v){ trip.activeId=trip.vendors[0]?.id; v=activeVendor(); }
+  m.innerHTML=''; m.appendChild(buildVendor(trip,v));
+}
+
+/* ----- vendor sheet ----- */
+function buildVendor(trip,v){
+  const wrap=document.createElement('div'); wrap.className='panel';
+
+  const pt=document.createElement('div'); pt.className='print-only print-title';
+  pt.innerHTML=`<h2>💎 ${escapeHtml(v.name)}</h2><div class="d">${escapeHtml(tripLabel(trip))}</div>`;
+  wrap.appendChild(pt);
+
+  const head=document.createElement('div'); head.className='vendor-head';
+  head.innerHTML=`<h2>${escapeHtml(v.name)}</h2><span class="meta">${v.rows.length} שורות</span>`;
+  const act=document.createElement('div'); act.className='vendor-actions';
+  act.innerHTML=`
+    <button class="btn btn-sm btn-outline" onclick="renameVendor('${v.id}')">✏️ שנה שם</button>
+    <button class="btn btn-sm btn-danger" onclick="deleteVendor('${v.id}')">🗑️ מחק ספק</button>`;
+  head.appendChild(act); wrap.appendChild(head);
+
+  const table=document.createElement('table');
+  table.innerHTML=headerHTML();
+  const tb=document.createElement('tbody');
+  v.rows.forEach((r,i)=>tb.appendChild(buildRow(v,r,i)));
+  table.appendChild(tb); table.appendChild(footerHTML(v));
+  wrap.appendChild(table);
+
+  const bar=document.createElement('div'); bar.className='add-row-bar';
+  const addBtn=document.createElement('button'); addBtn.className='btn btn-add'; addBtn.textContent='➕ הוסף שורה';
+  addBtn.onclick=()=>{ v.rows.push(blankRow()); save(); renderMain(); };
+  bar.appendChild(addBtn);
+  bar.insertAdjacentHTML('beforeend','<span class="hint">טיפ: צריך רק למלא משקל ועלות לקראט – הסה"כ מחושב לבד.</span>');
+  wrap.appendChild(bar);
+
+  wrap.appendChild(totalsCards(v));
+
+  const set=document.createElement('div'); set.className='settings'; set.innerHTML='מטבע: ';
+  const sel=document.createElement('select');
+  ['$','₪','€','£'].forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;if(c===state.currency)o.selected=true;sel.appendChild(o);});
+  sel.onchange=()=>{ state.currency=sel.value; save(); renderMain(); };
+  set.appendChild(sel); wrap.appendChild(set);
+  return wrap;
+}
+
+function headerHTML(){
+  return `
+  <thead>
+    <tr class="band">
+      <th class="band-tools" colspan="2"></th>
+      <th class="band-taken" colspan="5">סחורות שנלקחו</th>
+      <th class="band-tools" colspan="1"></th>
+      <th class="band-sales" colspan="3">מכירות</th>
+    </tr>
+    <tr>
+      <th>מספר</th>
+      ${COLS.map(c=>`<th>${c.label}</th>`).join('')}
+      <th></th>
+    </tr>
+  </thead>`;
+}
+
+function buildRow(v,r,i){
+  const tr=document.createElement('tr'); if(r.sold) tr.className='is-sold';
+  const tdNum=document.createElement('td'); tdNum.className='col-num'; tdNum.textContent=i+1; tr.appendChild(tdNum);
+
+  COLS.forEach(c=>{
+    const td=document.createElement('td');
+    if(c.type==='auto'){
+      td.className='auto'; td.dataset.auto=c.key;
+      td.textContent=c.key==='totCost'?fmtMoney(rowCost(r)):fmtMoney(rowSale(r));
+    }else if(c.type==='check'){
+      td.className='col-sold';
+      const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!!r.sold;
+      cb.onchange=()=>{ r.sold=cb.checked; save(); tr.className=r.sold?'is-sold':''; };
+      td.appendChild(cb);
+    }else if(c.type==='shape'){
+      const inp=document.createElement('input'); inp.setAttribute('list','shapes');
+      inp.value=r.shape||''; inp.placeholder='—';
+      inp.oninput=()=>{ r.shape=inp.value; debouncedSave(); }; td.appendChild(inp);
+    }else{
+      const inp=document.createElement('input'); inp.value=r[c.key]??'';
+      if(c.type==='num'||c.type==='int'){ inp.className='num'; inp.inputMode='decimal'; }
+      inp.oninput=()=>{
+        r[c.key]=inp.value;
+        if(c.key==='weight'||c.key==='cost'||c.key==='sale') updateAutoCells(tr,r,v);
+        debouncedSave();
+      };
+      td.appendChild(inp);
+    }
+    tr.appendChild(td);
+  });
+
+  const tdDel=document.createElement('td'); tdDel.className='col-del';
+  const del=document.createElement('button'); del.className='del-row'; del.title='מחק שורה'; del.textContent='🗑';
+  del.onclick=()=>{ if(v.rows.length===1){ v.rows[0]=blankRow(); } else { v.rows.splice(i,1); } save(); renderMain(); };
+  tdDel.appendChild(del); tr.appendChild(tdDel);
+  return tr;
+}
+
+function updateAutoCells(tr,r,v){
+  tr.querySelectorAll('td.auto').forEach(td=>{
+    td.textContent=td.dataset.auto==='totCost'?fmtMoney(rowCost(r)):fmtMoney(rowSale(r));
+  });
+  const table=tr.closest('table'); if(table){ table.querySelector('tfoot').replaceWith(footerHTML(v)); }
+  const panel=tr.closest('.panel'); if(panel){ const old=panel.querySelector('.totals'); if(old) old.replaceWith(totalsCards(v)); }
+}
+
+function footerHTML(v){
+  const tc=v.rows.reduce((s,r)=>s+rowCost(r),0);
+  const ts=v.rows.reduce((s,r)=>s+rowSale(r),0);
+  const stones=v.rows.reduce((s,r)=>s+num(r.stones),0);
+  const wt=v.rows.reduce((s,r)=>s+num(r.weight),0);
+  const tf=document.createElement('tfoot');
+  tf.innerHTML=`<tr>
+    <td class="lbl" colspan="3">סה"כ</td>
+    <td>${fmtNum(wt)}</td><td>${fmtNum(stones)}</td><td></td>
+    <td class="auto">${fmtMoney(tc)}</td><td></td><td></td>
+    <td class="auto">${fmtMoney(ts)}</td><td></td><td></td>
+  </tr>`;
+  return tf;
+}
+
+function totalsCards(v){
+  const tc=v.rows.reduce((s,r)=>s+rowCost(r),0);
+  const ts=v.rows.reduce((s,r)=>s+rowSale(r),0);
+  const sold=v.rows.filter(r=>r.sold).reduce((s,r)=>s+rowSale(r),0);
+  const d=document.createElement('div'); d.className='totals';
+  d.innerHTML=`
+    <div class="card"><div class="k">סה"כ עלות</div><div class="v">${fmtMoney(tc)}</div></div>
+    <div class="card"><div class="k">סה"כ מכירה (פוטנציאל)</div><div class="v">${fmtMoney(ts)}</div></div>
+    <div class="card"><div class="k">נמכר בפועל</div><div class="v">${fmtMoney(sold)}</div></div>
+    <div class="card profit"><div class="k">רווח (מכירה − עלות)</div><div class="v">${fmtMoney(ts-tc)}</div></div>`;
+  return d;
+}
+
+/* ----- summary (Main) ----- */
+function buildSummary(trip){
+  const wrap=document.createElement('div'); wrap.className='panel';
+  const pt=document.createElement('div'); pt.className='print-only print-title';
+  pt.innerHTML=`<h2>📊 סיכום כל הספקים</h2><div class="d">${escapeHtml(tripLabel(trip))}</div>`;
+  wrap.appendChild(pt);
+
+  const head=document.createElement('div'); head.className='vendor-head';
+  head.innerHTML=`<h2>📊 סיכום כל הספקים</h2><span class="meta">${escapeHtml(tripLabel(trip))}</span>`;
+  wrap.appendChild(head);
+
+  let gCost=0,gSale=0,gSold=0,gStones=0,gWt=0,gRows=0;
+  trip.vendors.forEach(v=>{
+    const rows=v.rows.filter(hasData); if(rows.length===0) return;
+    const sv=document.createElement('div'); sv.className='summary-vendor';
+    sv.innerHTML=`<h3>${escapeHtml(v.name)}</h3>`;
+    const table=document.createElement('table');
+    table.innerHTML=`<thead><tr>
+      <th>מספר</th><th>סריה</th><th>משקל</th><th>מספר אבנים</th><th>צורה</th>
+      <th>עלות לקראט</th><th>סה"כ עלות</th><th>מכירה לקראט</th><th>סה"כ מכירה</th><th>נמכר</th>
+    </tr></thead>`;
+    const tb=document.createElement('tbody'); let tc=0,ts=0,st=0,wt=0;
+    rows.forEach((r,i)=>{
+      const c=rowCost(r),s=rowSale(r); tc+=c; ts+=s; st+=num(r.stones); wt+=num(r.weight);
+      const tr=document.createElement('tr'); if(r.sold) tr.className='is-sold';
+      tr.innerHTML=`<td class="col-num">${i+1}</td><td>${escapeHtml(r.serial)}</td>
+        <td>${r.weight?fmtNum(num(r.weight)):''}</td><td>${r.stones||''}</td><td>${escapeHtml(r.shape)}</td>
+        <td>${r.cost?fmtMoney(num(r.cost)):''}</td><td class="auto">${fmtMoney(c)}</td>
+        <td>${r.sale?fmtMoney(num(r.sale)):''}</td><td class="auto">${fmtMoney(s)}</td>
+        <td>${r.sold?'✓':''}</td>`;
+      tb.appendChild(tr);
+    });
+    table.appendChild(tb);
+    const tf=document.createElement('tfoot');
+    tf.innerHTML=`<tr><td class="lbl" colspan="2">סה"כ ${escapeHtml(v.name)}</td>
+      <td>${fmtNum(wt)}</td><td>${fmtNum(st)}</td><td></td><td></td>
+      <td class="auto">${fmtMoney(tc)}</td><td></td><td class="auto">${fmtMoney(ts)}</td><td></td></tr>`;
+    table.appendChild(tf); sv.appendChild(table); wrap.appendChild(sv);
+    gCost+=tc; gSale+=ts; gStones+=st; gWt+=wt; gRows+=rows.length;
+    gSold+=rows.filter(r=>r.sold).reduce((a,r)=>a+rowSale(r),0);
+  });
+
+  if(gRows===0){
+    const e=document.createElement('div'); e.className='empty';
+    e.innerHTML='עדיין אין נתונים במסע הזה. עברו ללשונית של ספק והתחילו למלא 💎';
+    wrap.appendChild(e); return wrap;
+  }
+  const g=document.createElement('div'); g.className='totals'; g.style.marginTop='24px';
+  g.innerHTML=`
+    <div class="card"><div class="k">סה"כ אבנים</div><div class="v">${fmtNum(gStones)}</div></div>
+    <div class="card"><div class="k">סה"כ עלות</div><div class="v">${fmtMoney(gCost)}</div></div>
+    <div class="card"><div class="k">סה"כ מכירה (פוטנציאל)</div><div class="v">${fmtMoney(gSale)}</div></div>
+    <div class="card profit"><div class="k">רווח כולל</div><div class="v">${fmtMoney(gSale-gCost)}</div></div>`;
+  wrap.appendChild(g);
+  return wrap;
+}
+function hasData(r){ return r.serial||r.weight||r.stones||r.shape||r.cost||r.sale||r.notes; }
+
+/* ============================================================
+   ACTIONS — trips
+   ============================================================ */
+function addTrip(){
+  const name=prompt('שם המסע החדש (למשל: בנגקוק ינואר 2026):','מסע חדש');
+  if(name===null) return;
+  const t=newTrip(name.trim()||'מסע חדש');
+  state.trips.push(t); state.activeTripId=t.id; save(); render();
+}
+function duplicateTrip(){
+  const src=activeTrip();
+  const name=prompt('שם המסע המשוכפל:', src.name+' (עותק)');
+  if(name===null) return;
+  const copy=JSON.parse(JSON.stringify(src));
+  copy.id=rid('t'); copy.name=name.trim()||src.name+' (עותק)'; copy.date=today();
+  copy.activeId=copy.vendors[0]?.id||null;
+  // keep vendor structure but clear filled data so it's a fresh trip with same vendors
+  if(confirm('לרוקן את הנתונים בעותק ולהשאיר רק את שמות הספקים?\n(אישור = ספקים בלבד · ביטול = להעתיק גם את כל הנתונים)')){
+    copy.vendors.forEach(v=>{ v.id=rid('v'); v.rows=[blankRow()]; });
+    copy.activeId=copy.vendors[0]?.id||null;
+  }else{
+    copy.vendors.forEach(v=>v.id=rid('v')); copy.activeId=copy.vendors[0]?.id||null;
+  }
+  state.trips.push(copy); state.activeTripId=copy.id; save(); render();
+}
+function renameTrip(){
+  const t=activeTrip(); const name=prompt('שם חדש למסע:',t.name);
+  if(name===null) return; t.name=name.trim()||t.name; save(); render();
+}
+function deleteTrip(){
+  if(state.trips.length===1){ alert('חייב להישאר לפחות מסע אחד.'); return; }
+  const t=activeTrip();
+  if(!confirm(`למחוק את המסע "${t.name}" וכל הנתונים שבו? אי אפשר לבטל.\n(טיפ: עדיף קודם ללחוץ 💾 גיבוי הכל)`)) return;
+  state.trips=state.trips.filter(x=>x.id!==t.id);
+  state.activeTripId=state.trips[0].id; save(); render();
+}
+
+/* ----- vendors ----- */
+function addVendor(){
+  const name=prompt('שם הספק החדש:','ספק חדש'); if(name===null) return;
+  const trip=activeTrip(); const v=newVendor(name.trim()||'ספק חדש');
+  trip.vendors.push(v); trip.activeId=v.id; save(); render();
+}
+function renameVendor(id){
+  const v=activeTrip().vendors.find(x=>x.id===id); if(!v) return;
+  const name=prompt('שם חדש לספק:',v.name); if(name===null) return;
+  v.name=name.trim()||v.name; save(); render();
+}
+function deleteVendor(id){
+  const trip=activeTrip();
+  if(trip.vendors.length===1){ alert('חייב להישאר לפחות ספק אחד.'); return; }
+  const v=trip.vendors.find(x=>x.id===id);
+  if(!confirm(`למחוק את הספק "${v.name}" וכל הנתונים שלו? אי אפשר לבטל.`)) return;
+  trip.vendors=trip.vendors.filter(x=>x.id!==id);
+  if(trip.activeId===id) trip.activeId=trip.vendors[0].id;
+  save(); render();
+}
+
+let dbt=null; function debouncedSave(){ clearTimeout(dbt); dbt=setTimeout(save,400); }
+
+/* ----- export current trip to CSV (Excel, UTF-8 BOM) ----- */
+function exportCSV(){
+  const trip=activeTrip();
+  const headers=['ספק','מספר','סריה','משקל','מספר אבנים','צורה','עלות לקראט','סה"כ עלות','הערות','מכירה לקראט','סה"כ מכירה','נמכר'];
+  const lines=[['מסע:',tripLabel(trip)],[],headers];
+  trip.vendors.forEach(v=>{
+    v.rows.filter(hasData).forEach((r,i)=>{
+      lines.push([v.name,i+1,r.serial,r.weight,r.stones,r.shape,r.cost,rowCost(r),r.notes,r.sale,rowSale(r),r.sold?'כן':'']);
+    });
+  });
+  const csv='﻿'+lines.map(row=>row.map(csvCell).join(',')).join('\r\n');
+  download(csv, safeName(trip.name)+'_'+today()+'.csv','text/csv;charset=utf-8;');
+}
+function csvCell(v){ v=(v==null?'':String(v)); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+
+function backupJSON(){ download(JSON.stringify(state,null,2),`gemstones_backup_${today()}.json`,'application/json'); }
+function restoreJSON(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{
+      const s=JSON.parse(rd.result); if(!s.trips&&!s.vendors) throw 0;
+      if(!confirm('שחזור גיבוי ידרוס את כל הנתונים הנוכחיים. להמשיך?')) return;
+      if(s.trips){ state=s; } else { // v1 backup
+        const t={id:rid('t'),name:'מסע מיובא',date:today(),activeId:s.vendors[0]?.id,vendors:s.vendors};
+        state={currency:s.currency||'$',activeTripId:t.id,trips:[t]};
+      }
+      if(!state.activeTripId) state.activeTripId=state.trips[0].id;
+      save(); render(); alert('הגיבוי שוחזר בהצלחה ✓');
+    }catch(e){ alert('הקובץ אינו גיבוי תקין.'); }
+  };
+  rd.readAsText(f); ev.target.value='';
+}
+
+function download(content,name,type){
+  const blob=new Blob([content],{type}); const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function today(){ return new Date().toISOString().slice(0,10); }
+function safeName(s){ return String(s||'trip').replace(/[\\/:*?"<>|]+/g,'_').trim()||'trip'; }
+function escapeHtml(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+const dl=document.createElement('datalist'); dl.id='shapes';
+SHAPES.forEach(s=>{const o=document.createElement('option');o.value=s;dl.appendChild(o);});
+document.body.appendChild(dl);
+
+/* ============================================================
+   FILE SYNC — optional, no server.
+   Points at a JSON file in OneDrive/Google Drive/Dropbox; the
+   cloud client syncs it. localStorage stays as the safety net.
+   Uses the File System Access API (Chrome/Edge on desktop).
+   ============================================================ */
+const SYNC_SUPPORTED = !!(window.showOpenFilePicker && window.indexedDB);
+let syncHandle=null, syncNeedsReconnect=false, syncWriteTimer=null, syncBusy=false;
+
+function idbDB(){ return new Promise((res,rej)=>{ const r=indexedDB.open('gem-sync',1);
+  r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbSet(k,v){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readwrite');
+  t.objectStore('kv').put(v,k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+async function idbGet(k){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readonly');
+  const rq=t.objectStore('kv').get(k); rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); }); }
+async function idbDel(k){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readwrite');
+  t.objectStore('kv').delete(k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+
+function scheduleSyncWrite(){
+  if(!syncHandle||syncNeedsReconnect) return;
+  clearTimeout(syncWriteTimer); syncWriteTimer=setTimeout(writeSyncFile,1500);
+}
+async function writeSyncFile(){
+  if(!syncHandle||syncBusy) return; syncBusy=true;
+  try{
+    const w=await syncHandle.createWritable();
+    await w.write(JSON.stringify(state,null,2)); await w.close();
+    renderSyncUI('synced');
+  }catch(e){ renderSyncUI('error'); }
+  finally{ syncBusy=false; }
+}
+async function loadFromSync(){
+  try{
+    const file=await syncHandle.getFile(); const txt=await file.text();
+    if(!txt.trim()){ await writeSyncFile(); return; }   // brand-new empty file: seed it
+    const s=JSON.parse(txt);
+    if(s.trips){ state=s; }
+    else if(s.vendors){ const t={id:rid('t'),name:'מסע מיובא',date:today(),activeId:s.vendors[0]?.id,vendors:s.vendors}; state={currency:s.currency||'$',activeTripId:t.id,trips:[t]}; }
+    else return;
+    if(!state.activeTripId) state.activeTripId=state.trips[0].id;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    render();
+  }catch(e){ /* keep local copy on any read error */ }
+}
+
+async function connectNewFile(){
+  try{
+    syncHandle=await window.showSaveFilePicker({suggestedName:'gemstones.json',
+      types:[{description:'נתוני אבני חן',accept:{'application/json':['.json']}}]});
+    await idbSet('syncHandle',syncHandle); syncNeedsReconnect=false;
+    await writeSyncFile(); renderSyncUI('synced');
+    alert('מצוין! מעכשיו הנתונים נשמרים אוטומטית לקובץ הזה.\nשמרו אותו בתיקיית OneDrive / Google Drive כדי שיסונכרן.');
+  }catch(e){ if(e&&e.name!=='AbortError') alert('לא ניתן לחבר את הקובץ.'); }
+}
+async function connectExistingFile(){
+  try{
+    const [h]=await window.showOpenFilePicker({multiple:false,
+      types:[{description:'נתוני אבני חן',accept:{'application/json':['.json']}}]});
+    syncHandle=h; await idbSet('syncHandle',syncHandle); syncNeedsReconnect=false;
+    await loadFromSync(); renderSyncUI('synced');
+  }catch(e){ if(e&&e.name!=='AbortError') alert('לא ניתן לפתוח את הקובץ.'); }
+}
+async function disconnectSync(){
+  if(!confirm('לנתק את הסנכרון לקובץ? הנתונים יישארו שמורים במחשב.')) return;
+  syncHandle=null; syncNeedsReconnect=false; await idbDel('syncHandle'); renderSyncUI();
+}
+async function reconnectSync(){
+  if(!syncHandle) return;
+  try{
+    const p=await syncHandle.requestPermission({mode:'readwrite'});
+    if(p==='granted'){ syncNeedsReconnect=false; await loadFromSync(); renderSyncUI('synced'); }
+  }catch(e){}
+}
+
+function renderSyncUI(status){
+  const el=$('syncUI'), banner=$('syncBanner'); if(!el) return; el.innerHTML=''; banner.style.display='none';
+  if(!SYNC_SUPPORTED){
+    el.innerHTML='<span class="sync-chip" title="הדפדפן לא תומך בחיבור קובץ; השתמשו ב\\"גיבוי\\"">💾 שמירה מקומית</span>';
+    return;
+  }
+  if(syncHandle && !syncNeedsReconnect){
+    const dot = status==='error' ? '⚠️' : '🔗';
+    const name = (syncHandle.name||'gemstones.json');
+    el.innerHTML=`<span class="sync-chip">${dot} מסונכרן: <b>${escapeHtml(name)}</b></span>`;
+    const d=document.createElement('button'); d.className='btn btn-ghost btn-sm'; d.textContent='נתק'; d.onclick=disconnectSync;
+    el.appendChild(d);
+  }else if(syncHandle && syncNeedsReconnect){
+    el.innerHTML=`<span class="sync-chip">🔌 מנותק</span>`;
+    banner.style.display='flex';
+    banner.innerHTML='⚠️ יש קובץ סנכרון מחובר. לחצו כדי להתחבר מחדש ולטעון את הנתונים העדכניים.';
+    const b=document.createElement('button'); b.className='btn btn-amber'; b.textContent='🔗 התחבר מחדש'; b.onclick=reconnectSync;
+    banner.appendChild(b);
+  }else{
+    const b1=document.createElement('button'); b1.className='btn btn-ghost'; b1.textContent='🔗 חבר קובץ נתונים'; b1.onclick=connectNewFile;
+    const b2=document.createElement('button'); b2.className='btn btn-ghost'; b2.textContent='📂 פתח קובץ קיים'; b2.onclick=connectExistingFile;
+    el.appendChild(b1); el.appendChild(b2);
+  }
+}
+
+async function initSync(){
+  if(!SYNC_SUPPORTED){ renderSyncUI(); return; }
+  try{
+    syncHandle=await idbGet('syncHandle');
+    if(syncHandle){
+      const p=await syncHandle.queryPermission({mode:'readwrite'});
+      if(p==='granted'){ await loadFromSync(); renderSyncUI('synced'); }
+      else{ syncNeedsReconnect=true; renderSyncUI(); }
+    }else renderSyncUI();
+  }catch(e){ syncHandle=null; renderSyncUI(); }
+}
+
+window.addEventListener('beforeunload',save);
+render();
+initSync();
+</script>
+</body>
+</html>
