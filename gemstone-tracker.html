@@ -752,23 +752,26 @@ function exportCSV(){
 }
 function csvCell(v){ v=(v==null?'':String(v)); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 
-/* Send the trip as a PDF by email: guide the user to save the print as PDF,
-   then open a pre-filled (recipient-blank) email to attach it. mailto cannot
-   attach files, so this streamlines the manual two-step flow. */
+/* Send the trip as a PDF by email. We open Gmail's web compose in a new tab
+   (mailto needs a desktop mail client, which Gmail-in-the-browser users don't
+   have) and also open the print dialog so the user can save the PDF. No web
+   mail can auto-attach via a URL, so the PDF is attached manually. */
 function emailPDF(){
   const trip=activeTrip();
   const subject='מעקב אבני חן — '+tripLabel(trip);
   const body='שלום,\n\nמצורף קובץ ה‑PDF של הנסיעה "'+trip.name+'".\n'
-    +'(אם הקובץ עדיין לא מצורף – יש לצרף את ה‑PDF ששמרת מההדפסה.)\n';
-  const openMail=()=>{ location.href='mailto:?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body); };
-  alert('שליחת PDF במייל – שני צעדים:\n\n'
-    +'1) בחלון ההדפסה שייפתח עכשיו, בחר ביעד "שמירה כ‑PDF" ושמור את הקובץ.\n'
-    +'2) אחר כך ייפתח מייל חדש – צרף אליו את ה‑PDF ששמרת, הקלד נמען, ושלח.');
-  let done=false;
-  const after=()=>{ if(done) return; done=true; window.removeEventListener('afterprint',after); setTimeout(openMail,300); };
-  window.addEventListener('afterprint',after);
-  setTimeout(after,60000);   // fallback if afterprint never fires
-  window.print();
+    +'(יש לצרף את ה‑PDF ששמרת מההדפסה לפני השליחה.)\n';
+  const gmail='https://mail.google.com/mail/?view=cm&fs=1&tf=1'
+    +'&su='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+  alert('שליחת PDF במייל:\n\n'
+    +'1) ייפתח טאב חדש של Gmail עם מייל מוכן.\n'
+    +'2) מיד אחריו ייפתח חלון הדפסה – בחר "שמירה כ‑PDF" ושמור את הקובץ.\n'
+    +'3) עבור לטאב של Gmail, צרף את ה‑PDF ששמרת, הקלד נמען – ושלח.');
+  // open Gmail during the click (so it is not blocked as a popup); fall back to this tab
+  const w=window.open(gmail,'_blank');
+  if(!w){ location.href=gmail; return; }
+  // bring this tab forward and open the print dialog to save the PDF
+  setTimeout(()=>{ window.focus(); window.print(); }, 500);
 }
 
 function backupJSON(){ download(JSON.stringify(state,null,2),`gemstones_backup_${today()}.json`,'application/json'); }
