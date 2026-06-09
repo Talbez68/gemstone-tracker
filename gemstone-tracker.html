@@ -168,7 +168,8 @@
     body{background:#fff; font-size:12px}
     header,.tripbar,.tabs,.toolbar,.vendor-actions,.add-row-bar,.settings,
     details.help,.del-row,.tab-add,.col-del,#numToast,
-    .sidemenu,.menu-toggle,.menu-backdrop,.guide-view{display:none!important}
+    .sidemenu,.menu-toggle,.menu-backdrop,.guide-view,
+    .sales-col,.sales-card{display:none!important}
     main{padding:0}
     .panel{border:none; box-shadow:none; border-radius:0; padding:0}
     thead th{position:static}
@@ -349,6 +350,7 @@ const COLS = [
   {key:'totSale',label:'סה"כ מכירה',    type:'auto'},
   {key:'sold',   label:'נמכר',          type:'check'},
 ];
+const SALE = {sale:1, totSale:1, sold:1};   // sales columns – hidden in print
 
 let state = load();
 
@@ -512,12 +514,12 @@ function headerHTML(){
       <th class="band-tools" colspan="2"></th>
       <th class="band-taken" colspan="5">סחורות שנלקחו</th>
       <th class="band-tools" colspan="1"></th>
-      <th class="band-sales" colspan="3">מכירות</th>
+      <th class="band-sales sales-col" colspan="3">מכירות</th>
     </tr>
     <tr>
       <th>מספר</th>
-      ${COLS.map(c=>`<th>${c.label}</th>`).join('')}
-      <th></th>
+      ${COLS.map(c=>`<th class="${SALE[c.key]?'sales-col':''}">${c.label}</th>`).join('')}
+      <th class="col-del"></th>
     </tr>
   </thead>`;
 }
@@ -557,6 +559,7 @@ function buildRow(v,r,i){
       };
       td.appendChild(inp);
     }
+    if(SALE[c.key]) td.className=(td.className+' sales-col').trim();
     tr.appendChild(td);
   });
 
@@ -582,10 +585,11 @@ function footerHTML(v){
   const wt=v.rows.reduce((s,r)=>s+num(r.weight),0);
   const tf=document.createElement('tfoot');
   tf.innerHTML=`<tr>
-    <td class="lbl" colspan="3">סה"כ</td>
-    <td>${fmtNum(wt)}</td><td>${fmtNum(stones)}</td><td></td>
-    <td class="auto">${fmtMoney(tc)}</td><td></td><td></td>
-    <td class="auto">${fmtMoney(ts)}</td><td></td><td></td>
+    <td class="lbl" colspan="2">סה"כ</td>
+    <td>${fmtNum(wt)}</td><td>${fmtNum(stones)}</td><td></td><td></td>
+    <td class="auto">${fmtMoney(tc)}</td><td></td>
+    <td class="sales-col"></td><td class="auto sales-col">${fmtMoney(ts)}</td><td class="sales-col"></td>
+    <td class="col-del"></td>
   </tr>`;
   return tf;
 }
@@ -597,9 +601,9 @@ function totalsCards(v){
   const d=document.createElement('div'); d.className='totals';
   d.innerHTML=`
     <div class="card"><div class="k">סה"כ עלות</div><div class="v">${fmtMoney(tc)}</div></div>
-    <div class="card"><div class="k">סה"כ מכירה (פוטנציאל)</div><div class="v">${fmtMoney(ts)}</div></div>
-    <div class="card"><div class="k">נמכר בפועל</div><div class="v">${fmtMoney(sold)}</div></div>
-    <div class="card profit"><div class="k">רווח (מכירה − עלות)</div><div class="v">${fmtMoney(ts-tc)}</div></div>`;
+    <div class="card sales-card"><div class="k">סה"כ מכירה (פוטנציאל)</div><div class="v">${fmtMoney(ts)}</div></div>
+    <div class="card sales-card"><div class="k">נמכר בפועל</div><div class="v">${fmtMoney(sold)}</div></div>
+    <div class="card profit sales-card"><div class="k">רווח (מכירה − עלות)</div><div class="v">${fmtMoney(ts-tc)}</div></div>`;
   return d;
 }
 
@@ -622,7 +626,7 @@ function buildSummary(trip){
     const table=document.createElement('table');
     table.innerHTML=`<thead><tr>
       <th>מספר</th><th>סריה</th><th>משקל</th><th>מספר אבנים</th><th>צורה</th>
-      <th>עלות לקראט</th><th>סה"כ עלות</th><th>מכירה לקראט</th><th>סה"כ מכירה</th><th>נמכר</th>
+      <th>עלות לקראט</th><th>סה"כ עלות</th><th class="sales-col">מכירה לקראט</th><th class="sales-col">סה"כ מכירה</th><th class="sales-col">נמכר</th>
     </tr></thead>`;
     const tb=document.createElement('tbody'); let tc=0,ts=0,st=0,wt=0;
     rows.forEach((r,i)=>{
@@ -631,15 +635,15 @@ function buildSummary(trip){
       tr.innerHTML=`<td class="col-num">${i+1}</td><td>${escapeHtml(r.serial)}</td>
         <td>${r.weight?fmtNum(num(r.weight)):''}</td><td>${r.stones||''}</td><td>${escapeHtml(r.shape)}</td>
         <td>${r.cost?fmtMoney(num(r.cost)):''}</td><td class="auto">${fmtMoney(c)}</td>
-        <td>${r.sale?fmtMoney(num(r.sale)):''}</td><td class="auto">${fmtMoney(s)}</td>
-        <td>${r.sold?'✓':''}</td>`;
+        <td class="sales-col">${r.sale?fmtMoney(num(r.sale)):''}</td><td class="auto sales-col">${fmtMoney(s)}</td>
+        <td class="sales-col">${r.sold?'✓':''}</td>`;
       tb.appendChild(tr);
     });
     table.appendChild(tb);
     const tf=document.createElement('tfoot');
     tf.innerHTML=`<tr><td class="lbl" colspan="2">סה"כ ${escapeHtml(v.name)}</td>
       <td>${fmtNum(wt)}</td><td>${fmtNum(st)}</td><td></td><td></td>
-      <td class="auto">${fmtMoney(tc)}</td><td></td><td class="auto">${fmtMoney(ts)}</td><td></td></tr>`;
+      <td class="auto">${fmtMoney(tc)}</td><td class="sales-col"></td><td class="auto sales-col">${fmtMoney(ts)}</td><td class="sales-col"></td></tr>`;
     table.appendChild(tf); sv.appendChild(table); wrap.appendChild(sv);
     gCost+=tc; gSale+=ts; gStones+=st; gWt+=wt; gRows+=rows.length;
     gSold+=rows.filter(r=>r.sold).reduce((a,r)=>a+rowSale(r),0);
@@ -654,8 +658,8 @@ function buildSummary(trip){
   g.innerHTML=`
     <div class="card"><div class="k">סה"כ אבנים</div><div class="v">${fmtNum(gStones)}</div></div>
     <div class="card"><div class="k">סה"כ עלות</div><div class="v">${fmtMoney(gCost)}</div></div>
-    <div class="card"><div class="k">סה"כ מכירה (פוטנציאל)</div><div class="v">${fmtMoney(gSale)}</div></div>
-    <div class="card profit"><div class="k">רווח כולל</div><div class="v">${fmtMoney(gSale-gCost)}</div></div>`;
+    <div class="card sales-card"><div class="k">סה"כ מכירה (פוטנציאל)</div><div class="v">${fmtMoney(gSale)}</div></div>
+    <div class="card profit sales-card"><div class="k">רווח כולל</div><div class="v">${fmtMoney(gSale-gCost)}</div></div>`;
   wrap.appendChild(g);
   return wrap;
 }
