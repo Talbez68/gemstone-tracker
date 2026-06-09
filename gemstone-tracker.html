@@ -186,8 +186,8 @@
   <h1><span class="gem">💎</span> מעקב אבני חן</h1>
   <div class="toolbar">
     <button class="btn btn-light" onclick="window.print()" title="הדפסת הטבלה או שמירתה כקובץ PDF. בחלון ההדפסה בוחרים את היעד 'שמירה כ‑PDF'.">🖨️ הדפסה / שמירה כ‑PDF</button>
-    <button class="btn btn-ghost" onclick="exportCSV()" title="ייצוא הנתונים של המסע הנוכחי לקובץ אקסל (CSV) שנפתח באקסל, כולל עברית. מתאים לצפייה – לא לטעינה חזרה לאפליקציה.">⬇️ ייצוא לאקסל</button>
-    <button class="btn btn-ghost" onclick="backupJSON()" title="שמירת גיבוי מלא של כל המסעות והנתונים לקובץ אחד במחשב. כדאי לעשות מדי פעם, וגם כדי להעביר את הכול למחשב אחר.">💾 גיבוי הכל</button>
+    <button class="btn btn-ghost" onclick="exportCSV()" title="ייצוא הנתונים של הנסיעה הנוכחית לקובץ אקסל (CSV) שנפתח באקסל, כולל עברית. מתאים לצפייה – לא לטעינה חזרה לאפליקציה.">⬇️ ייצוא לאקסל</button>
+    <button class="btn btn-ghost" onclick="backupJSON()" title="שמירת גיבוי מלא של כל הנסיעות והנתונים לקובץ אחד במחשב. כדאי לעשות מדי פעם, וגם כדי להעביר את הכול למחשב אחר.">💾 גיבוי הכל</button>
     <label class="btn btn-ghost" style="cursor:pointer" title="טעינת קובץ גיבוי שנשמר קודם. שימו לב: הפעולה דורסת את כל הנתונים הקיימים כעת באפליקציה.">↺ שחזור גיבוי
       <input type="file" accept=".json" onchange="restoreJSON(event)" style="display:none">
     </label>
@@ -199,23 +199,23 @@
 
 <!-- Trip / business-travel selector -->
 <div class="tripbar">
-  <span class="lead">📁 מסע נסיעה:</span>
-  <select id="tripSelect" title="בחירת המסע שמוצג כעת. כל נסיעה היא מסע נפרד שנשמר לתמיד."></select>
-  <input type="date" id="tripDate" title="תאריך המסע">
+  <span class="lead">📁 נסיעה:</span>
+  <select id="tripSelect" title="בחירת הנסיעה שמוצגת כעת. כל נסיעה היא נפרדת ונשמרת לתמיד."></select>
+  <input type="date" id="tripDate" title="תאריך הנסיעה">
   <div class="tbtns">
-    <button class="btn btn-sm btn-trip" onclick="addTrip()" title="פתיחת מסע נסיעה חדש וריק, עם ספקי ברירת המחדל.">➕ מסע חדש</button>
-    <button class="btn btn-sm btn-trip" onclick="duplicateTrip()" title="יצירת עותק של המסע הנוכחי – אפשר להעתיק רק את שמות הספקים, או גם את כל הנתונים.">⧉ שכפל מסע</button>
-    <button class="btn btn-sm btn-trip" onclick="renameTrip()" title="שינוי השם של המסע הנוכחי.">✏️ שנה שם</button>
-    <button class="btn btn-sm btn-trip" onclick="deleteTrip()" title="מחיקת המסע הנוכחי וכל הנתונים שבו. אי אפשר לבטל – כדאי קודם ללחוץ 'גיבוי הכל'.">🗑️ מחק מסע</button>
+    <button class="btn btn-sm btn-trip" onclick="addTrip()" title="פתיחת נסיעה חדשה וריקה, עם ספקי ברירת המחדל.">➕ נסיעה חדשה</button>
+    <button class="btn btn-sm btn-trip" onclick="duplicateTrip()" title="יצירת עותק של הנסיעה הנוכחית – אפשר להעתיק רק את שמות הספקים, או גם את כל הנתונים.">⧉ שכפל נסיעה</button>
+    <button class="btn btn-sm btn-trip" onclick="renameTrip()" title="שינוי השם של הנסיעה הנוכחית.">✏️ שנה שם</button>
+    <button class="btn btn-sm btn-trip" onclick="deleteTrip()" title="מחיקת הנסיעה הנוכחית וכל הנתונים שבה. אי אפשר לבטל – כדאי קודם ללחוץ 'גיבוי הכל'.">🗑️ מחק נסיעה</button>
   </div>
 </div>
 
 <details class="help">
   <summary>איך משתמשים? (לחצו לפתיחה)</summary>
   <ol>
-    <li>בפס הכחול למעלה בוחרים <b>מסע נסיעה</b>. כל נסיעה לעבודה היא "מסע" נפרד שנשמר לתמיד – אפשר לחזור אליו ולהדפיס מתי שרוצים.</li>
-    <li>נסיעה חדשה? לוחצים <b>➕ מסע חדש</b>. אפשר גם <b>⧉ לשכפל</b> מסע קודם כדי להתחיל מאותם ספקים.</li>
-    <li>בתוך כל מסע יש <b>לשונית לכל ספק</b>. לוחצים על שם הספק כדי לראות את הטבלה שלו.</li>
+    <li>בפס הכחול למעלה בוחרים <b>נסיעה</b>. כל נסיעה לעבודה היא נפרדת ונשמרת לתמיד – אפשר לחזור אליה ולהדפיס מתי שרוצים.</li>
+    <li>נסיעה חדשה? לוחצים <b>➕ נסיעה חדשה</b>. אפשר גם <b>⧉ לשכפל</b> נסיעה קודמת כדי להתחיל מאותם ספקים.</li>
+    <li>בתוך כל נסיעה יש <b>לשונית לכל ספק</b>. לוחצים על שם הספק כדי לראות את הטבלה שלו.</li>
     <li>ממלאים רק: <b>סריה, משקל, מספר אבנים, צורה, עלות לקראט</b> (ואם נמכר – גם מכירה לקראט).</li>
     <li>העמודות <b>סה"כ עלות</b> ו<b>סה"כ מכירה</b> מחושבות לבד – אין צורך לגעת בהן.</li>
     <li>צריך עוד שורה? <b>➕ הוסף שורה</b>. ספק חדש? <b>➕ ספק חדש</b>.</li>
@@ -263,7 +263,7 @@ function newTrip(name){
   t.activeId=t.vendors[0].id; return t;
 }
 function defaultState(){
-  const t=newTrip('מסע ראשון');
+  const t=newTrip('נסיעה ראשונה');
   return {currency:'$', activeTripId:t.id, trips:[t]};
 }
 
@@ -276,7 +276,7 @@ function load(){
   try{
     const old=JSON.parse(localStorage.getItem('gemstone-tracker-v1'));
     if(old && old.vendors){
-      const t={id:rid('t'),name:'מסע מיובא',date:today(),activeId:old.activeId,vendors:old.vendors};
+      const t={id:rid('t'),name:'נסיעה מיובאת',date:today(),activeId:old.activeId,vendors:old.vendors};
       if(!t.activeId||t.activeId==='__summary__') t.activeId=t.vendors[0]?.id;
       return {currency:old.currency||'$', activeTripId:t.id, trips:[t]};
     }
@@ -333,7 +333,7 @@ function renderTabs(){
   });
   const add=document.createElement('button');
   add.className='tab-add'; add.textContent='➕ ספק חדש';
-  add.title='הוספת לשונית של ספק חדש למסע הנוכחי.';
+  add.title='הוספת לשונית של ספק חדש לנסיעה הנוכחית.';
   add.onclick=addVendor; t.appendChild(add);
 
   const sum=document.createElement('button');
@@ -387,7 +387,7 @@ function buildVendor(trip,v){
 
   const set=document.createElement('div'); set.className='settings'; set.innerHTML='מטבע: ';
   const sel=document.createElement('select');
-  sel.title='בחירת מטבע התצוגה. משפיע על כל הסכומים בכל המסעות.';
+  sel.title='בחירת מטבע התצוגה. משפיע על כל הסכומים בכל הנסיעות.';
   ['$','₪','€','£'].forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;if(c===state.currency)o.selected=true;sel.appendChild(o);});
   sel.onchange=()=>{ state.currency=sel.value; save(); renderMain(); };
   set.appendChild(sel); wrap.appendChild(set);
@@ -536,7 +536,7 @@ function buildSummary(trip){
 
   if(gRows===0){
     const e=document.createElement('div'); e.className='empty';
-    e.innerHTML='עדיין אין נתונים במסע הזה. עברו ללשונית של ספק והתחילו למלא 💎';
+    e.innerHTML='עדיין אין נתונים בנסיעה הזו. עברו ללשונית של ספק והתחילו למלא 💎';
     wrap.appendChild(e); return wrap;
   }
   const g=document.createElement('div'); g.className='totals'; g.style.marginTop='24px';
@@ -554,14 +554,14 @@ function hasData(r){ return r.serial||r.weight||r.stones||r.shape||r.cost||r.sal
    ACTIONS — trips
    ============================================================ */
 function addTrip(){
-  const name=prompt('שם המסע החדש (למשל: בנגקוק ינואר 2026):','מסע חדש');
+  const name=prompt('שם הנסיעה החדשה (למשל: בנגקוק ינואר 2026):','נסיעה חדשה');
   if(name===null) return;
-  const t=newTrip(name.trim()||'מסע חדש');
+  const t=newTrip(name.trim()||'נסיעה חדשה');
   state.trips.push(t); state.activeTripId=t.id; save(); render();
 }
 function duplicateTrip(){
   const src=activeTrip();
-  const name=prompt('שם המסע המשוכפל:', src.name+' (עותק)');
+  const name=prompt('שם הנסיעה המשוכפלת:', src.name+' (עותק)');
   if(name===null) return;
   const copy=JSON.parse(JSON.stringify(src));
   copy.id=rid('t'); copy.name=name.trim()||src.name+' (עותק)'; copy.date=today();
@@ -576,13 +576,13 @@ function duplicateTrip(){
   state.trips.push(copy); state.activeTripId=copy.id; save(); render();
 }
 function renameTrip(){
-  const t=activeTrip(); const name=prompt('שם חדש למסע:',t.name);
+  const t=activeTrip(); const name=prompt('שם חדש לנסיעה:',t.name);
   if(name===null) return; t.name=name.trim()||t.name; save(); render();
 }
 function deleteTrip(){
-  if(state.trips.length===1){ alert('חייב להישאר לפחות מסע אחד.'); return; }
+  if(state.trips.length===1){ alert('חייבת להישאר לפחות נסיעה אחת.'); return; }
   const t=activeTrip();
-  if(!confirm(`למחוק את המסע "${t.name}" וכל הנתונים שבו? אי אפשר לבטל.\n(טיפ: עדיף קודם ללחוץ 💾 גיבוי הכל)`)) return;
+  if(!confirm(`למחוק את הנסיעה "${t.name}" וכל הנתונים שבה? אי אפשר לבטל.\n(טיפ: עדיף קודם ללחוץ 💾 גיבוי הכל)`)) return;
   state.trips=state.trips.filter(x=>x.id!==t.id);
   state.activeTripId=state.trips[0].id; save(); render();
 }
@@ -626,7 +626,7 @@ function flashInvalid(inp){ inp.classList.add('input-invalid'); setTimeout(()=>i
 function exportCSV(){
   const trip=activeTrip();
   const headers=['ספק','מספר','סריה','משקל','מספר אבנים','צורה','עלות לקראט','סה"כ עלות','הערות','מכירה לקראט','סה"כ מכירה','נמכר'];
-  const lines=[['מסע:',tripLabel(trip)],[],headers];
+  const lines=[['נסיעה:',tripLabel(trip)],[],headers];
   trip.vendors.forEach(v=>{
     v.rows.filter(hasData).forEach((r,i)=>{
       lines.push([v.name,i+1,r.serial,r.weight,r.stones,r.shape,r.cost,rowCost(r),r.notes,r.sale,rowSale(r),r.sold?'כן':'']);
@@ -645,7 +645,7 @@ function restoreJSON(ev){
       const s=JSON.parse(rd.result); if(!s.trips&&!s.vendors) throw 0;
       if(!confirm('שחזור גיבוי ידרוס את כל הנתונים הנוכחיים. להמשיך?')) return;
       if(s.trips){ state=s; } else { // v1 backup
-        const t={id:rid('t'),name:'מסע מיובא',date:today(),activeId:s.vendors[0]?.id,vendors:s.vendors};
+        const t={id:rid('t'),name:'נסיעה מיובאת',date:today(),activeId:s.vendors[0]?.id,vendors:s.vendors};
         state={currency:s.currency||'$',activeTripId:t.id,trips:[t]};
       }
       if(!state.activeTripId) state.activeTripId=state.trips[0].id;
@@ -705,7 +705,7 @@ async function loadFromSync(){
     if(!txt.trim()){ await writeSyncFile(); return; }   // brand-new empty file: seed it
     const s=JSON.parse(txt);
     if(s.trips){ state=s; }
-    else if(s.vendors){ const t={id:rid('t'),name:'מסע מיובא',date:today(),activeId:s.vendors[0]?.id,vendors:s.vendors}; state={currency:s.currency||'$',activeTripId:t.id,trips:[t]}; }
+    else if(s.vendors){ const t={id:rid('t'),name:'נסיעה מיובאת',date:today(),activeId:s.vendors[0]?.id,vendors:s.vendors}; state={currency:s.currency||'$',activeTripId:t.id,trips:[t]}; }
     else return;
     if(!state.activeTripId) state.activeTripId=state.trips[0].id;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
