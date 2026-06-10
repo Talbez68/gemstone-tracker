@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>מעקב אבני חן</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='52' font-size='78' text-anchor='middle' dominant-baseline='central'>💎</text></svg>">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f7b6c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="אבני חן">
 <style>
   :root{
     --bg:#f4f1ea; --panel:#ffffff; --ink:#2b2b2b; --muted:#7a7468;
@@ -1199,6 +1203,13 @@ window.addEventListener('beforeunload',save);
 render();
 showGuide(false);
 initSync();
+
+/* PWA: register the service worker when served over http(s) (GitHub Pages),
+   so the app works offline and auto-updates. Harmless / skipped for a local
+   double-clicked file. Data lives in localStorage and is never affected. */
+if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
 </script>
 </body>
 </html>
