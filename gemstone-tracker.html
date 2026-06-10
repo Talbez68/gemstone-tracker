@@ -1210,6 +1210,12 @@ initSync();
 if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
+
+/* Ask the browser to keep this app's data and not auto-evict it under
+   storage pressure. No prompt in Chrome/Edge; granted by heuristics. */
+if(navigator.storage && navigator.storage.persist){
+  navigator.storage.persisted().then(p=>{ if(!p) return navigator.storage.persist(); }).catch(()=>{});
+}
 </script>
 </body>
 </html>
