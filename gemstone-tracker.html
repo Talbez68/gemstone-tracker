@@ -211,10 +211,18 @@
   .menu-item.active{background:var(--accent); color:#fff; border-color:var(--accent)}
   .menu-item.guide{background:#fff7e6; border-color:var(--gold); color:#8a6a16}
   .menu-item.guide.active{background:var(--gold); color:#fff}
-  #sideMenu #syncUI{display:flex; flex-direction:column; align-items:stretch; gap:8px}
-  #sideMenu #syncUI .sync-chip{justify-content:center; background:var(--auto); color:var(--accent-d); border:1px solid var(--line)}
-  #sideMenu #syncUI .btn{justify-content:center; width:100%; background:var(--soft); color:var(--accent-d); border:1px solid var(--line); font-size:15px}
-  #sideMenu #syncUI .btn:hover{border-color:var(--accent)}
+  #sideMenu #syncUI, #sideMenu #backupUI{display:flex; flex-direction:column; align-items:stretch; gap:8px}
+  #sideMenu #syncUI .sync-chip, #sideMenu #backupUI .sync-chip{justify-content:center; background:var(--auto); color:var(--accent-d); border:1px solid var(--line)}
+  #sideMenu #syncUI .btn, #sideMenu #backupUI .btn{justify-content:center; width:100%; background:var(--soft); color:var(--accent-d); border:1px solid var(--line); font-size:15px}
+  #sideMenu #syncUI .btn:hover, #sideMenu #backupUI .btn:hover{border-color:var(--accent)}
+  /* restore-a-version overlay */
+  .rst-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:80; align-items:center; justify-content:center; padding:18px}
+  .rst-box{background:#fff; border-radius:16px; padding:22px 24px; max-width:520px; width:100%; max-height:84vh; overflow:auto; box-shadow:0 12px 40px rgba(0,0,0,.3)}
+  .rst-box h2{margin:0 0 8px; color:var(--accent-d); font-size:22px}
+  .rst-box p{color:var(--muted); font-size:15px; margin:0 0 14px; line-height:1.6}
+  .rst-list{display:flex; flex-direction:column; gap:8px}
+  .rst-item{display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--soft); border:1px solid var(--line); border-radius:10px; padding:11px 14px}
+  .rst-meta{color:var(--muted); font-size:14px}
   .menu-toggle{display:none; background:rgba(255,255,255,.18); color:#fff; border:none;
     border-radius:9px; font-size:22px; line-height:1; padding:6px 12px; cursor:pointer}
   .menu-backdrop{display:none}
@@ -309,6 +317,11 @@
       </label>
     </div>
     <div class="menu-section">
+      <div class="menu-title">גיבוי אוטומטי</div>
+      <button class="menu-item" onclick="openRestore()" title="שחזור גרסה קודמת של הנתונים. האפליקציה שומרת אוטומטית גרסה ליום (בתוך הדפדפן), כדי שאפשר יהיה לחזור אחורה אם נמחק משהו בטעות.">↩️ שחזר גרסה קודמת</button>
+      <span id="backupUI"></span>
+    </div>
+    <div class="menu-section">
       <div class="menu-title">סנכרון בענן</div>
       <span id="syncUI"></span>
     </div>
@@ -397,6 +410,7 @@ function save(){
   const el=$('saved'); el.classList.add('show');
   clearTimeout(saveTimer); saveTimer=setTimeout(()=>el.classList.remove('show'),1200);
   scheduleSyncWrite();      // also mirror to the linked cloud file, if any
+  scheduleSnapshot();       // rolling daily snapshots (+ off-device backup folder)
 }
 
 /* ---------- helpers ---------- */
@@ -924,14 +938,118 @@ document.body.appendChild(dl);
 const SYNC_SUPPORTED = !!(window.showOpenFilePicker && window.indexedDB);
 let syncHandle=null, syncNeedsReconnect=false, syncWriteTimer=null, syncBusy=false;
 
-function idbDB(){ return new Promise((res,rej)=>{ const r=indexedDB.open('gem-sync',1);
-  r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+function idbDB(){ return new Promise((res,rej)=>{ const r=indexedDB.open('gem-sync',2);
+  r.onupgradeneeded=()=>{ const db=r.result;
+    if(!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+    if(!db.objectStoreNames.contains('snaps')) db.createObjectStore('snaps',{keyPath:'day'}); };
+  r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
 async function idbSet(k,v){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readwrite');
   t.objectStore('kv').put(v,k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
 async function idbGet(k){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readonly');
   const rq=t.objectStore('kv').get(k); rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); }); }
 async function idbDel(k){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readwrite');
   t.objectStore('kv').delete(k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+/* ---- daily snapshot store (in-browser undo) ---- */
+async function snapPut(rec){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('snaps','readwrite');
+  t.objectStore('snaps').put(rec); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+async function snapAll(){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('snaps','readonly');
+  const rq=t.objectStore('snaps').getAll(); rq.onsuccess=()=>res(rq.result||[]); rq.onerror=()=>rej(rq.error); }); }
+async function snapDel(day){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('snaps','readwrite');
+  t.objectStore('snaps').delete(day); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+
+/* ============================================================
+   AUTO-BACKUP — two layers:
+   A) rolling daily snapshots in the browser (undo for mistakes)
+   B) timestamped backups into a chosen Drive/OneDrive folder (off-device)
+   ============================================================ */
+const SNAP_KEEP=14, BACKUP_KEEP=30;
+let snapTimer=null;
+function scheduleSnapshot(){ clearTimeout(snapTimer); snapTimer=setTimeout(saveSnapshot,4000); }
+async function saveSnapshot(){
+  try{
+    await snapPut({day:today(), ts:new Date().toISOString(), data:JSON.parse(JSON.stringify(state))});
+    const all=await snapAll();
+    if(all.length>SNAP_KEEP){ all.sort((a,b)=>a.day.localeCompare(b.day));
+      for(const r of all.slice(0,all.length-SNAP_KEEP)) await snapDel(r.day); }
+  }catch(e){}
+  scheduleBackupWrite();   // also push an off-device dated backup, if a folder is connected
+}
+
+/* ----- in-app restore-a-previous-version UI ----- */
+function rowsIn(d){ let n=0; (d&&d.trips||[]).forEach(t=>(t.vendors||[]).forEach(v=>n+=(v.rows||[]).filter(hasData).length)); return n; }
+async function openRestore(){
+  toggleMenu(false);
+  const all=(await snapAll()).sort((a,b)=>b.day.localeCompare(a.day));
+  let html='<div class="rst-box"><h2>↩️ שחזור גרסה קודמת</h2>';
+  if(!all.length){ html+='<p>אין עדיין גרסאות שמורות. הן נוצרות אוטומטית תוך כדי העבודה (גרסה אחת ליום).</p>'; }
+  else{
+    html+='<p>בחר תאריך לשחזור. הנתונים הנוכחיים יוחלפו (אבל גם הם נשמרים כגרסה, אז אפשר לחזור).</p><div class="rst-list">';
+    for(const r of all){ const d=r.data||{};
+      html+=`<div class="rst-item"><div><b>${r.day}</b> <span class="rst-meta">${(d.trips||[]).length} נסיעות · ${rowsIn(d)} שורות</span></div>`
+        +`<button class="btn btn-sm btn-add" onclick="restoreSnapshot('${r.day}')">שחזר</button></div>`;
+    }
+    html+='</div>';
+  }
+  html+='<div style="text-align:left;margin-top:16px"><button class="btn btn-sm btn-outline" onclick="closeRestore()">סגור</button></div></div>';
+  let ov=$('rstOverlay'); if(!ov){ ov=document.createElement('div'); ov.id='rstOverlay'; ov.className='rst-overlay'; document.body.appendChild(ov); }
+  ov.innerHTML=html; ov.style.display='flex'; ov.onclick=e=>{ if(e.target===ov) closeRestore(); };
+}
+function closeRestore(){ const ov=$('rstOverlay'); if(ov) ov.style.display='none'; }
+async function restoreSnapshot(day){
+  const all=await snapAll(); const r=all.find(x=>x.day===day); if(!r) return;
+  if(!confirm('לשחזר את הנתונים מהתאריך '+day+'?\nהנתונים הנוכחיים יוחלפו.')) return;
+  state=JSON.parse(JSON.stringify(r.data)); if(!state.activeTripId) state.activeTripId=state.trips[0]?.id;
+  save(); render(); closeRestore(); showView('tracker'); alert('שוחזרה הגרסה מ‑'+day+' ✓');
+}
+
+/* ----- off-device backup folder (Layer B) ----- */
+let backupDir=null, backupNeedsReconnect=false, backupWriteTimer=null, backupBusy=false, lastBackupDay=null;
+function scheduleBackupWrite(){ if(!backupDir||backupNeedsReconnect) return; clearTimeout(backupWriteTimer); backupWriteTimer=setTimeout(writeBackupFile,2500); }
+async function writeBackupFile(){
+  if(!backupDir||backupBusy) return; backupBusy=true;
+  try{
+    const fh=await backupDir.getFileHandle('gemstones_'+today()+'.json',{create:true});
+    const w=await fh.createWritable(); await w.write(JSON.stringify(state,null,2)); await w.close();
+    lastBackupDay=today();
+    const files=[]; for await(const [n,h] of backupDir.entries()){ if(h.kind==='file'&&/^gemstones_\d{4}-\d{2}-\d{2}\.json$/.test(n)) files.push(n); }
+    files.sort(); for(const n of files.slice(0,Math.max(0,files.length-BACKUP_KEEP))) await backupDir.removeEntry(n).catch(()=>{});
+    renderBackupUI('ok');
+  }catch(e){ renderBackupUI('error'); } finally{ backupBusy=false; }
+}
+async function connectBackupFolder(){
+  if(!window.showDirectoryPicker){ alert('הדפדפן הזה לא תומך בבחירת תיקייה. נסו ב‑Chrome או Edge.'); return; }
+  try{
+    backupDir=await window.showDirectoryPicker({mode:'readwrite',id:'gem-backup'});
+    await idbSet('backupDir',backupDir); backupNeedsReconnect=false;
+    await writeBackupFile();
+    alert('מצוין! מעכשיו נשמר גיבוי אוטומטי מתוארך לתיקייה הזו (גרסה ליום). מומלץ לבחור תיקייה בתוך OneDrive / Google Drive כדי שהגיבוי יישמר גם בענן.');
+  }catch(e){ if(e&&e.name!=='AbortError') alert('לא ניתן לחבר את תיקיית הגיבוי.'); }
+}
+async function disconnectBackupFolder(){
+  if(!confirm('לנתק את תיקיית הגיבוי האוטומטי? הגיבויים שכבר נשמרו יישארו בתיקייה.')) return;
+  backupDir=null; backupNeedsReconnect=false; await idbDel('backupDir'); renderBackupUI();
+}
+async function reconnectBackupFolder(){
+  if(!backupDir) return;
+  try{ const p=await backupDir.requestPermission({mode:'readwrite'});
+    if(p==='granted'){ backupNeedsReconnect=false; await writeBackupFile(); } }catch(e){}
+}
+function renderBackupUI(status){
+  const el=$('backupUI'); if(!el) return; el.innerHTML='';
+  if(!window.showDirectoryPicker){
+    el.innerHTML='<span class="sync-chip" title="זמין ב‑Chrome/Edge בלבד">📁 לא נתמך בדפדפן זה</span>'; return;
+  }
+  if(backupDir && !backupNeedsReconnect){
+    const nm=backupDir.name||'תיקייה';
+    el.innerHTML=`<span class="sync-chip">${status==='error'?'⚠️':'🗂️'} גיבוי אוטומטי: <b>${escapeHtml(nm)}</b></span>`;
+    const d=document.createElement('button'); d.className='btn btn-ghost btn-sm'; d.textContent='נתק'; d.onclick=disconnectBackupFolder; el.appendChild(d);
+  }else if(backupDir && backupNeedsReconnect){
+    const b=document.createElement('button'); b.className='btn btn-amber'; b.textContent='🗂️ אשר תיקיית גיבוי'; b.title='אישור מחדש של ההרשאה לתיקיית הגיבוי.'; b.onclick=reconnectBackupFolder; el.appendChild(b);
+  }else{
+    const b=document.createElement('button'); b.className='btn btn-ghost'; b.textContent='🗂️ חבר תיקיית גיבוי';
+    b.title='בחירת תיקייה (מומלץ בתוך OneDrive/Drive) שאליה יישמר גיבוי אוטומטי מתוארך, גרסה אחת ליום.'; b.onclick=connectBackupFolder; el.appendChild(b);
+  }
+}
 
 function scheduleSyncWrite(){
   if(!syncHandle||syncNeedsReconnect) return;
@@ -1024,6 +1142,13 @@ async function initSync(){
       else{ syncNeedsReconnect=true; renderSyncUI(); }
     }else renderSyncUI();
   }catch(e){ syncHandle=null; renderSyncUI(); }
+  // restore the off-device backup folder handle, if any
+  try{
+    backupDir=await idbGet('backupDir');
+    if(backupDir){ const p=await backupDir.queryPermission({mode:'readwrite'});
+      backupNeedsReconnect = p!=='granted'; }
+  }catch(e){ backupDir=null; }
+  renderBackupUI();
 }
 
 /* ============================================================
