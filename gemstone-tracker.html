@@ -93,6 +93,8 @@
   }
   .vendor-head{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px}
   .vendor-head h2{margin:0; font-size:24px; color:var(--accent-d)}
+  .vcode-badge{display:inline-block; background:var(--gold); color:#fff; font-size:15px; font-weight:700;
+    letter-spacing:.5px; padding:2px 9px; border-radius:8px; vertical-align:middle; direction:ltr}
   .vendor-head .meta{color:var(--muted); font-size:15px}
   .vendor-actions{margin-right:auto; display:flex; gap:8px}
   .btn-sm{padding:7px 12px; font-size:14px; border-radius:8px}
@@ -386,7 +388,22 @@ let state = load();
 /* ---------- model ---------- */
 function rid(p){ return p+Math.random().toString(36).slice(2,9); }
 function blankRow(){ return {serial:'',weight:'',stones:'',shape:'',cost:'',notes:'',sale:'',sold:false}; }
-function newVendor(name){ return {id:rid('v'), name, rows:[blankRow()]}; }
+function newVendor(name){ return {id:rid('v'), name, code:'', rows:[blankRow()]}; }
+/* ---- vendor codes & auto-serials (CODE-01, CODE-02 ...) ---- */
+function vendorCode(v){ return ((v&&v.code) || (state&&state.vendorCodes&&state.vendorCodes[v.name]) || '').toUpperCase(); }
+function makeSerial(code,n){ return code+'-'+String(n).padStart(2,'0'); }
+function nextSerialNum(v){
+  const code=vendorCode(v); if(!code) return 1;
+  const re=new RegExp('^'+code+'-0*(\\d+)$','i'); let mx=0;
+  v.rows.forEach(r=>{ const m=(r.serial||'').trim().match(re); if(m){ const n=parseInt(m[1],10); if(n>mx) mx=n; } });
+  return mx+1;
+}
+/* seed a fresh/duplicated trip's default vendors with their remembered codes */
+function applyVendorCodes(t){
+  const map=(state&&state.vendorCodes)||{};
+  t.vendors.forEach(v=>{ const c=v.code||map[v.name]; if(!c) return; v.code=c;
+    v.rows.forEach((r,i)=>{ if(!r.serial) r.serial=makeSerial(c,i+1); }); });
+}
 function newTrip(name){
   const t={id:rid('t'), name, date:today(), activeId:null,
     vendors:[newVendor('אלול'),newVendor('פינק'),newVendor('גמסיס'),newVendor('ערן')]};
@@ -492,9 +509,12 @@ function buildVendor(trip,v){
   wrap.appendChild(pt);
 
   const head=document.createElement('div'); head.className='vendor-head';
-  head.innerHTML=`<h2>${escapeHtml(v.name)}</h2><span class="meta">${v.rows.length} שורות</span>`;
+  const code=vendorCode(v);
+  const badge=code ? `<span class="vcode-badge" title="קוד הספק – ממנו נוצרות הסריות אוטומטית">${escapeHtml(code)}</span>` : '';
+  head.innerHTML=`<h2>${escapeHtml(v.name)} ${badge}</h2><span class="meta">${v.rows.length} שורות</span>`;
   const act=document.createElement('div'); act.className='vendor-actions';
   act.innerHTML=`
+    <button class="btn btn-sm btn-outline" onclick="setVendorCode('${v.id}')" title="קוד הספק (2 אותיות באנגלית, למשל PD). ממנו נוצרות הסריות אוטומטית: PD-01, PD-02 ...">🏷️ ${code?'קוד: '+escapeHtml(code):'קבע קוד ספק'}</button>
     <button class="btn btn-sm btn-outline" onclick="renameVendor('${v.id}')" title="שינוי שם הספק.">✏️ שנה שם</button>
     <button class="btn btn-sm btn-danger" onclick="deleteVendor('${v.id}')" title="מחיקת הספק וכל השורות שלו. אי אפשר לבטל.">🗑️ מחק ספק</button>`;
   head.appendChild(act); wrap.appendChild(head);
@@ -517,7 +537,8 @@ function buildVendor(trip,v){
   const addRows=()=>{
     let n=parseInt(countInp.value,10);
     if(!isFinite(n)||n<1) n=1; if(n>100) n=100;
-    for(let i=0;i<n;i++) v.rows.push(blankRow());
+    const code=vendorCode(v); let seq=nextSerialNum(v);
+    for(let i=0;i<n;i++){ const row=blankRow(); if(code) row.serial=makeSerial(code,seq++); v.rows.push(row); }
     save(); renderMain();
   };
   addBtn.onclick=addRows;
@@ -693,7 +714,8 @@ function buildSummary(trip){
   wrap.appendChild(g);
   return wrap;
 }
-function hasData(r){ return r.serial||r.weight||r.stones||r.shape||r.cost||r.sale||r.notes; }
+/* a row counts as real data when it has gem info — an auto-serial alone doesn't */
+function hasData(r){ return r.weight||r.stones||r.shape||r.cost||r.sale||r.notes; }
 
 /* ============================================================
    ACTIONS — trips
@@ -702,6 +724,7 @@ function addTrip(){
   const name=prompt('שם הנסיעה החדשה (למשל: בנגקוק ינואר 2026):','נסיעה חדשה');
   if(name===null) return;
   const t=newTrip(name.trim()||'נסיעה חדשה');
+  applyVendorCodes(t);                       // reuse each vendor's remembered code + seed CODE-01
   state.trips.push(t); state.activeTripId=t.id; save(); render();
 }
 function duplicateTrip(){
@@ -713,7 +736,7 @@ function duplicateTrip(){
   copy.activeId=copy.vendors[0]?.id||null;
   // keep vendor structure but clear filled data so it's a fresh trip with same vendors
   if(confirm('לרוקן את הנתונים בעותק ולהשאיר רק את שמות הספקים?\n(אישור = ספקים בלבד · ביטול = להעתיק גם את כל הנתונים)')){
-    copy.vendors.forEach(v=>{ v.id=rid('v'); v.rows=[blankRow()]; });
+    copy.vendors.forEach(v=>{ v.id=rid('v'); v.rows=[blankRow()]; if(v.code) v.rows[0].serial=makeSerial(v.code,1); });
     copy.activeId=copy.vendors[0]?.id||null;
   }else{
     copy.vendors.forEach(v=>v.id=rid('v')); copy.activeId=copy.vendors[0]?.id||null;
@@ -742,6 +765,18 @@ function renameVendor(id){
   const v=activeTrip().vendors.find(x=>x.id===id); if(!v) return;
   const name=prompt('שם חדש לספק:',v.name); if(name===null) return;
   v.name=name.trim()||v.name; save(); render();
+}
+function setVendorCode(id){
+  const v=activeTrip().vendors.find(x=>x.id===id); if(!v) return;
+  let code=prompt('קוד הספק – בדיוק 2 אותיות באנגלית גדולות (למשל: PD).\nממנו נוצרות הסריות אוטומטית בכל הוספת שורה (PD-01, PD-02 ...):', vendorCode(v));
+  if(code===null) return;
+  code=code.trim().toUpperCase();
+  if(!/^[A-Z]{2}$/.test(code)){ alert('הקוד חייב להיות בדיוק 2 אותיות באנגלית (A–Z).'); return; }
+  v.code=code; state.vendorCodes=state.vendorCodes||{}; state.vendorCodes[v.name]=code;   // remember per vendor name, for every trip
+  if(confirm('למספר מחדש את כל הסריות בטבלה לפי הקוד '+code+'?\n\nאישור = '+code+'-01, '+code+'-02 ... (לפי הסדר)\nביטול = רק שורות חדשות שתוסיף יקבלו סריה')){
+    let n=1; v.rows.forEach(r=>{ r.serial=makeSerial(code,n++); });
+  }
+  save(); renderMain();
 }
 function deleteVendor(id){
   const trip=activeTrip();
