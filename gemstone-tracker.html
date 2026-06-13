@@ -545,6 +545,17 @@ function buildVendor(trip,v){
   addBtn.onclick=addRows;
   countInp.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); addRows(); } };
   bar.appendChild(addBtn); bar.appendChild(countWrap);
+  const clearBtn=document.createElement('button'); clearBtn.className='btn btn-sm btn-outline'; clearBtn.textContent='🧹 נקה שורות ריקות';
+  clearBtn.title='מסיר את כל השורות הריקות (ללא משקל / מספר אבנים / צורה / עלות / מכירה / הערות). שורות עם נתונים נשמרות.';
+  clearBtn.onclick=()=>{
+    const keep=v.rows.filter(r=>hasData(r)||r.sold);
+    const removed=v.rows.length-keep.length;
+    if(removed===0){ alert('אין שורות ריקות להסרה.'); return; }
+    if(!confirm('להסיר '+removed+' שורות ריקות? שורות עם נתונים יישארו.')) return;
+    v.rows = keep.length ? keep : [blankRow()];
+    save(); renderMain();
+  };
+  bar.appendChild(clearBtn);
   bar.insertAdjacentHTML('beforeend','<span class="hint">טיפ: צריך רק למלא משקל ועלות לקראט – הסה"כ מחושב לבד.</span>');
   wrap.appendChild(bar);
 
