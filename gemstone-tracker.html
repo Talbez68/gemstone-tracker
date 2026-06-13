@@ -286,6 +286,27 @@
   .pv-row .f .fv{font-weight:700; color:var(--ink); direction:ltr; unicode-bidi:isolate}
   .pv-row .f.sale .fv{color:var(--accent-d)}
   @media (max-width:380px){ .pv-row .r-grid{grid-template-columns:1fr} }
+  /* vendor statistics */
+  .stats-view{padding:6px 4px 60px}
+  .stats-wrap{max-width:820px; margin:0 auto}
+  .st-head-main{margin:8px 4px 6px}
+  .st-head-main h2{margin:0; font-size:24px; color:var(--accent-d)}
+  .st-head-main .st-sub{color:var(--muted); font-size:15px; margin-top:2px}
+  .st-sort{margin:0 4px 16px; color:var(--muted); font-size:15px; display:flex; align-items:center; gap:8px}
+  .st-sort select{font-family:inherit; font-size:15px; padding:6px 10px; border-radius:8px; border:1px solid var(--line); background:#fff}
+  .st-vendor{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:16px; box-shadow:0 2px 8px rgba(0,0,0,.04)}
+  .st-head{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px}
+  .st-top{background:var(--gold); color:#fff; font-size:12px; font-weight:700; padding:3px 9px; border-radius:8px}
+  .st-headline{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px}
+  .st-grid{display:grid; grid-template-columns:1fr 1fr; gap:5px 18px; margin-bottom:8px}
+  .st-grid .f{display:flex; justify-content:space-between; gap:10px; font-size:14.5px; padding:4px 2px; border-bottom:1px dashed var(--line)}
+  .st-grid .f .fl{color:var(--muted)}
+  .st-grid .f .fv{font-weight:700; color:var(--ink); direction:ltr; unicode-bidi:isolate}
+  .st-time{margin-top:6px; font-size:14px}
+  .st-time summary{cursor:pointer; color:var(--accent-d); font-weight:700; padding:4px 0}
+  .st-time .tt-row{display:flex; justify-content:space-between; gap:10px; padding:6px 2px; border-bottom:1px dashed var(--line); color:var(--muted)}
+  .st-time .tt-row b{color:var(--ink)}
+  @media (max-width:520px){ .st-grid{grid-template-columns:1fr} }
   @media (max-width:520px){ .pv-stats{grid-template-columns:repeat(2,1fr)} .pv-head h2{font-size:22px} }
   .guide-view{padding:6px 4px 60px; max-width:900px; margin:0 auto}
   .guide-hero{background:linear-gradient(135deg,#0f7b6c,#3d4a8a); color:#fff; border-radius:16px;
@@ -342,6 +363,7 @@
       <button class="menu-item active" id="navTracker" onclick="showView('tracker')">🏠 מסך המעקב</button>
       <button class="menu-item" id="navPreview" onclick="showView('preview')">👁️ תצוגה מהירה</button>
       <button class="menu-item" id="navHistory" onclick="showView('history')">🧳 היסטוריית נסיעות</button>
+      <button class="menu-item" id="navStats" onclick="showView('stats')">📊 סטטיסטיקת ספקים</button>
       <button class="menu-item guide" id="navGuide" onclick="showView('guide')">📖 מדריך שימוש</button>
     </div>
     <div class="menu-section">
@@ -385,6 +407,7 @@
     <div class="tabs" id="tabs"></div>
     <main id="main"></main>
     <section class="preview-view" id="previewView" style="display:none"></section>
+    <section class="stats-view" id="statsView" style="display:none"></section>
     <section class="history-view" id="historyView" style="display:none"></section>
     <section class="guide-view" id="guideView" style="display:none"></section>
   </div>
@@ -1261,6 +1284,8 @@ function showView(view){            // 'tracker' | 'preview' | 'history' | 'guid
   $('main').style.display = isTracker ? '' : 'none';
   if(view==='preview') buildPreview();          // always rebuilt – data is live
   $('previewView').style.display = view==='preview' ? 'block' : 'none';
+  if(view==='stats') buildStats();              // always rebuilt – data is live
+  $('statsView').style.display = view==='stats' ? 'block' : 'none';
   if(view==='guide' && !guideBuilt){ buildGuide(); guideBuilt=true; }
   $('guideView').style.display = view==='guide' ? 'block' : 'none';
   if(view==='history') buildHistory();          // always rebuilt – data is live
@@ -1268,12 +1293,90 @@ function showView(view){            // 'tracker' | 'preview' | 'history' | 'guid
   $('navTracker').classList.toggle('active', isTracker);
   $('navPreview').classList.toggle('active', view==='preview');
   $('navHistory').classList.toggle('active', view==='history');
+  $('navStats').classList.toggle('active', view==='stats');
   $('navGuide').classList.toggle('active', view==='guide');
   toggleMenu(false);
   window.scrollTo(0,0);
 }
 function showGuide(on){ showView(on ? 'guide' : 'tracker'); }
 function openTrip(id){ state.activeTripId=id; save(); render(); showView('tracker'); }
+
+/* ----- vendor statistics across all trips (by vendor name) ----- */
+let statsSort='profit';
+function aggregateVendorStats(){
+  const map={};
+  state.trips.forEach(t=>{
+    t.vendors.forEach(v=>{
+      const rows=v.rows.filter(hasData); if(!rows.length) return;
+      const a = map[v.name] || (map[v.name]={name:v.name, code:vendorCode(v), trips:0, byTrip:[],
+        boughtCount:0, cost:0, carat:0, stones:0, soldCount:0, soldRev:0, soldCost:0, unsoldCost:0});
+      if(!a.code) a.code=vendorCode(v);
+      let tCost=0,tRev=0,tSoldCost=0,tCount=0,tSold=0;
+      rows.forEach(r=>{
+        const rc=rowCost(r), rs=rowSale(r);
+        a.boughtCount++; a.cost+=rc; a.carat+=num(r.weight); a.stones+=num(r.stones); tCount++; tCost+=rc;
+        if(r.sold){ a.soldCount++; a.soldRev+=rs; a.soldCost+=rc; tSold++; tRev+=rs; tSoldCost+=rc; }
+        else a.unsoldCost+=rc;
+      });
+      a.trips++;
+      a.byTrip.push({name:t.name, date:t.date||'', count:tCount, sold:tSold, cost:tCost, profit:tRev-tSoldCost});
+    });
+  });
+  const list=Object.values(map);
+  list.forEach(a=>{
+    a.realized=a.soldRev-a.soldCost;
+    a.margin=a.soldCost>0 ? a.realized/a.soldCost*100 : 0;
+    a.sellThrough=a.boughtCount>0 ? a.soldCount/a.boughtCount*100 : 0;
+    a.avgCostCarat=a.carat>0 ? a.cost/a.carat : 0;
+    a.byTrip.sort((x,y)=>(y.date||'').localeCompare(x.date||''));
+  });
+  const sorters={ profit:(x,y)=>y.realized-x.realized, margin:(x,y)=>y.margin-x.margin,
+    sell:(x,y)=>y.sellThrough-x.sellThrough, cost:(x,y)=>y.cost-x.cost, trips:(x,y)=>y.trips-x.trips };
+  list.sort(sorters[statsSort]||sorters.profit);
+  return list;
+}
+function buildStats(){
+  const list=aggregateVendorStats();
+  const opt=(v,t)=>`<option value="${v}"${statsSort===v?' selected':''}>${t}</option>`;
+  const head=`<div class="st-head-main"><h2>📊 סטטיסטיקת ספקים</h2>
+    <div class="st-sub">סיכום לכל ספק על פני כל הנסיעות</div></div>
+    <div class="st-sort">מיון לפי:
+      <select onchange="statsSort=this.value; buildStats();">
+        ${opt('profit','רווח ממומש')}${opt('margin','מרווח %')}${opt('sell','אחוז מכירה')}${opt('cost','עלות כוללת')}${opt('trips','מספר נסיעות')}
+      </select></div>`;
+  if(!list.length){
+    $('statsView').innerHTML=`<div class="stats-wrap">${head}<div class="empty">עדיין אין נתונים. מלאו אבנים אצל ספקים כדי לראות סטטיסטיקה 💎</div></div>`;
+    return;
+  }
+  const pct=n=>Math.round(n)+'%';
+  const cardsHtml=list.map((a,i)=>{
+    const kv=(l,v)=>`<div class="f"><span class="fl">${l}</span><span class="fv">${v}</span></div>`;
+    const grid=[
+      kv('עלות כוללת', fmtMoney(a.cost)),
+      kv('סה"כ מכירות', fmtMoney(a.soldRev)),
+      kv('אבנים שנקנו', fmtNum(a.boughtCount)),
+      kv('נמכרו', fmtNum(a.soldCount)+' / '+fmtNum(a.boughtCount)),
+      kv('סה"כ קראט', fmtNum(a.carat)),
+      kv('עלות ממוצעת לקראט', fmtMoney(a.avgCostCarat)),
+      kv('שווי שלא נמכר', fmtMoney(a.unsoldCost)),
+      kv('נסיעות', fmtNum(a.trips)),
+    ].join('');
+    const time=a.byTrip.map(b=>`<div class="tt-row"><span>${escapeHtml(b.name)}${b.date?' · '+b.date:''}</span>
+      <span>עלות <b>${fmtMoney(b.cost)}</b> · רווח <b>${fmtMoney(b.profit)}</b></span></div>`).join('');
+    return `<div class="st-vendor">
+      <div class="st-head"><span class="pv-vname">${escapeHtml(a.name)}${a.code?` <span class="vcode-badge">${escapeHtml(a.code)}</span>`:''}</span>
+        ${i===0&&statsSort==='profit'?'<span class="st-top">⭐ הכי רווחי</span>':''}</div>
+      <div class="st-headline">
+        <div class="pv-stat profit"><div class="lbl">רווח ממומש</div><div class="num">${fmtMoney(a.realized)}</div></div>
+        <div class="pv-stat"><div class="lbl">אחוז מכירה</div><div class="num">${pct(a.sellThrough)}</div></div>
+        <div class="pv-stat"><div class="lbl">מרווח</div><div class="num">${pct(a.margin)}</div></div>
+      </div>
+      <div class="st-grid">${grid}</div>
+      <details class="st-time"><summary>לאורך זמן (${fmtNum(a.trips)} נסיעות)</summary>${time}</details>
+    </div>`;
+  }).join('');
+  $('statsView').innerHTML=`<div class="stats-wrap">${head}${cardsHtml}</div>`;
+}
 
 /* ----- friendly mobile preview of the active trip ----- */
 function buildPreview(){
