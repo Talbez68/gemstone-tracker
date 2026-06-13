@@ -277,13 +277,15 @@
   .pv-row{padding:12px 6px; border-bottom:1px solid var(--soft)}
   .pv-row:last-child{border-bottom:none}
   .pv-row.sold{background:var(--sold); border-radius:10px; padding:12px 10px}
-  .pv-row .r-l1{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+  .pv-row .r-head{display:flex; align-items:baseline; gap:10px}
   .pv-row .r-serial{font-size:17px; font-weight:800; color:var(--ink); direction:ltr}
-  .pv-row .r-spec{font-size:15.5px; color:var(--muted); direction:ltr; unicode-bidi:isolate}
   .pv-row .r-soldtag{margin-right:auto; color:var(--gold); font-weight:700; font-size:14px}
-  .pv-row .r-l2{display:flex; gap:20px; margin-top:5px; font-size:15.5px; color:var(--muted)}
-  .pv-row .r-l2 b{color:var(--ink); font-weight:700}
-  .pv-row .r-sale b{color:var(--accent-d)}
+  .pv-row .r-grid{display:grid; grid-template-columns:1fr 1fr; gap:5px 18px; margin-top:8px}
+  .pv-row .f{display:flex; justify-content:space-between; gap:10px; font-size:15px; padding:4px 2px; border-bottom:1px dashed var(--line)}
+  .pv-row .f .fl{color:var(--muted)}
+  .pv-row .f .fv{font-weight:700; color:var(--ink); direction:ltr; unicode-bidi:isolate}
+  .pv-row .f.sale .fv{color:var(--accent-d)}
+  @media (max-width:380px){ .pv-row .r-grid{grid-template-columns:1fr} }
   @media (max-width:520px){ .pv-stats{grid-template-columns:repeat(2,1fr)} .pv-head h2{font-size:22px} }
   .guide-view{padding:6px 4px 60px; max-width:900px; margin:0 auto}
   .guide-hero{background:linear-gradient(135deg,#0f7b6c,#3d4a8a); color:#fff; border-radius:16px;
@@ -1282,17 +1284,16 @@ function buildPreview(){
     let c=0,s=0,wt=0,st=0;
     const rowsHtml=rows.map(r=>{
       const rc=rowCost(r), rs=rowSale(r); c+=rc; s+=rs; wt+=num(r.weight); st+=num(r.stones); if(r.sold) gSold+=rs;
-      const spec=[ r.weight?fmtNum(num(r.weight))+' ct':'', r.shape?escapeHtml(r.shape):'' ].filter(Boolean).join(' · ');
+      const fields=[];
+      if(r.weight) fields.push(['משקל', fmtNum(num(r.weight))+' ct']);
+      if(r.stones && num(r.stones)>1) fields.push(['מספר אבנים', escapeHtml(r.stones)]);
+      if(r.shape) fields.push(['צורה', escapeHtml(r.shape)]);
+      fields.push(['עלות', fmtMoney(rc)]);
+      if(r.sale) fields.push(['מכירה', fmtMoney(rs), 'sale']);
+      const fieldsHtml=fields.map(f=>`<div class="f${f[2]?' '+f[2]:''}"><span class="fl">${f[0]}</span><span class="fv">${f[1]}</span></div>`).join('');
       return `<div class="pv-row${r.sold?' sold':''}">
-        <div class="r-l1">
-          <b class="r-serial">${escapeHtml(r.serial||'—')}</b>
-          ${spec?`<span class="r-spec">${spec}</span>`:''}
-          ${r.sold?'<span class="r-soldtag">✓ נמכר</span>':''}
-        </div>
-        <div class="r-l2">
-          <span>עלות <b>${fmtMoney(rc)}</b></span>
-          ${r.sale?`<span class="r-sale">מכירה <b>${fmtMoney(rs)}</b></span>`:''}
-        </div>
+        <div class="r-head"><b class="r-serial">${escapeHtml(r.serial||'—')}</b>${r.sold?'<span class="r-soldtag">✓ נמכר</span>':''}</div>
+        <div class="r-grid">${fieldsHtml}</div>
       </div>`;
     }).join('');
     gCost+=c; gSale+=s; gWt+=wt; gStones+=st; gRows+=rows.length;
