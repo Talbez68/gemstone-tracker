@@ -388,7 +388,7 @@ let state = load();
 /* ---------- model ---------- */
 function rid(p){ return p+Math.random().toString(36).slice(2,9); }
 function blankRow(){ return {serial:'',weight:'',stones:'',shape:'',cost:'',notes:'',sale:'',sold:false}; }
-function newVendor(name){ return {id:rid('v'), name, code:'', rows:[blankRow()]}; }
+function newVendor(name, code=''){ const r=blankRow(); if(code) r.serial=makeSerial(code,1); return {id:rid('v'), name, code, rows:[r]}; }
 /* ---- vendor codes & auto-serials (CODE-01, CODE-02 ...) ---- */
 function vendorCode(v){ return ((v&&v.code) || (state&&state.vendorCodes&&state.vendorCodes[v.name]) || '').toUpperCase(); }
 function makeSerial(code,n){ return code+'-'+String(n).padStart(2,'0'); }
@@ -406,7 +406,7 @@ function applyVendorCodes(t){
 }
 function newTrip(name){
   const t={id:rid('t'), name, date:today(), activeId:null,
-    vendors:[newVendor('אלול'),newVendor('פינק'),newVendor('גמסיס'),newVendor('ערן')]};
+    vendors:[newVendor('גדי','GD'),newVendor('פינק'),newVendor('גמסיס'),newVendor('ערן')]};
   t.activeId=t.vendors[0].id; return t;
 }
 function defaultState(){
