@@ -758,7 +758,12 @@ function deleteTrip(){
 /* ----- vendors ----- */
 function addVendor(){
   const name=prompt('שם הספק החדש:','ספק חדש'); if(name===null) return;
-  const trip=activeTrip(); const v=newVendor(name.trim()||'ספק חדש');
+  let code=prompt('קוד הספק – 2 אותיות באנגלית גדולות (למשל RM), שממנו נוצרות הסריות אוטומטית (RM-01, RM-02 ...).\nאפשר להשאיר ריק ולקבוע מאוחר יותר:','');
+  if(code===null) code='';
+  code=code.trim().toUpperCase();
+  if(code && !/^[A-Z]{2}$/.test(code)){ alert('הקוד חייב להיות בדיוק 2 אותיות באנגלית (A–Z). הספק נוצר בלי קוד – אפשר לקבוע אותו מאוחר יותר.'); code=''; }
+  const trip=activeTrip(); const v=newVendor(name.trim()||'ספק חדש', code);
+  if(code){ state.vendorCodes=state.vendorCodes||{}; state.vendorCodes[v.name]=code; }   // remember for future trips
   trip.vendors.push(v); trip.activeId=v.id; save(); render();
 }
 function renameVendor(id){
