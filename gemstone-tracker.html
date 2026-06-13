@@ -122,6 +122,7 @@
   tbody td.auto{background:var(--auto); font-weight:700; color:var(--accent-d); padding:9px 6px}
   tbody tr.is-sold{background:var(--sold)!important}
   td.col-num{color:var(--muted); font-weight:600; width:42px}
+  th.col-stones,td.col-stones{width:54px}
   td.col-del{width:40px}
   .del-row{background:none; border:none; cursor:pointer; color:#bbb; font-size:18px; padding:6px}
   .del-row:hover{color:var(--danger)}
@@ -569,7 +570,7 @@ function headerHTML(){
     </tr>
     <tr>
       <th>מספר</th>
-      ${COLS.map(c=>`<th class="${SALE[c.key]?'sales-col':''}">${c.label}</th>`).join('')}
+      ${COLS.map(c=>`<th class="${SALE[c.key]?'sales-col':''}${c.key==='stones'?' col-stones':''}">${c.label}</th>`).join('')}
       <th class="col-del"></th>
     </tr>
   </thead>`;
@@ -611,6 +612,7 @@ function buildRow(v,r,i){
       td.appendChild(inp);
     }
     if(SALE[c.key]) td.className=(td.className+' sales-col').trim();
+    if(c.key==='stones') td.className=(td.className+' col-stones').trim();
     tr.appendChild(td);
   });
 
@@ -637,7 +639,7 @@ function footerHTML(v){
   const tf=document.createElement('tfoot');
   tf.innerHTML=`<tr>
     <td class="lbl" colspan="2">סה"כ</td>
-    <td>${fmtNum(wt)}</td><td>${fmtNum(stones)}</td><td></td><td></td>
+    <td>${fmtNum(wt)}</td><td class="col-stones">${fmtNum(stones)}</td><td></td><td></td>
     <td class="auto">${fmtMoney(tc)}</td><td></td>
     <td class="sales-col"></td><td class="auto sales-col">${fmtMoney(ts)}</td><td class="sales-col"></td>
     <td class="col-del"></td>
@@ -672,7 +674,7 @@ function buildSummary(trip){
   let gCost=0,gSale=0,gSold=0,gStones=0,gWt=0,gRows=0,idx=0;
   const table=document.createElement('table'); table.className='sum-table';
   table.innerHTML=`<thead><tr>
-    <th>מספר</th><th>סריה</th><th>משקל</th><th>מספר אבנים</th><th>צורה</th>
+    <th>מספר</th><th>סריה</th><th>משקל</th><th class="col-stones">מספר אבנים</th><th>צורה</th>
     <th>עלות לקראט</th><th>סה"כ עלות</th><th class="sales-col">מכירה לקראט</th><th class="sales-col">סה"כ מכירה</th><th class="sales-col">נמכר</th>
   </tr></thead>`;
   const tb=document.createElement('tbody');
@@ -685,7 +687,7 @@ function buildSummary(trip){
       const tr=document.createElement('tr');
       if(r.sold) tr.className='is-sold';
       tr.innerHTML=`<td class="col-num">${idx}</td><td>${escapeHtml(r.serial)}</td>
-        <td>${r.weight?fmtNum(num(r.weight)):''}</td><td>${r.stones||''}</td><td>${escapeHtml(r.shape)}</td>
+        <td>${r.weight?fmtNum(num(r.weight)):''}</td><td class="col-stones">${r.stones||''}</td><td>${escapeHtml(r.shape)}</td>
         <td>${r.cost?fmtMoney(num(r.cost)):''}</td><td class="auto">${fmtMoney(c)}</td>
         <td class="sales-col">${r.sale?fmtMoney(num(r.sale)):''}</td><td class="auto sales-col">${fmtMoney(s)}</td>
         <td class="sales-col">${r.sold?'✓':''}</td>`;
@@ -695,7 +697,7 @@ function buildSummary(trip){
   table.appendChild(tb);
   const tf=document.createElement('tfoot');
   tf.innerHTML=`<tr><td class="lbl" colspan="2">סה"כ כל הספקים</td>
-    <td>${fmtNum(gWt)}</td><td>${fmtNum(gStones)}</td><td></td><td></td>
+    <td>${fmtNum(gWt)}</td><td class="col-stones">${fmtNum(gStones)}</td><td></td><td></td>
     <td class="auto">${fmtMoney(gCost)}</td><td class="sales-col"></td><td class="auto sales-col">${fmtMoney(gSale)}</td><td class="sales-col"></td></tr>`;
   table.appendChild(tf);
 
