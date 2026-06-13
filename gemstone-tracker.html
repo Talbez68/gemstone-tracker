@@ -274,14 +274,16 @@
     margin-bottom:8px; border-bottom:1px solid var(--line); padding-bottom:8px}
   .pv-vname{font-size:19px; font-weight:700; color:var(--accent-d)}
   .pv-vsub{color:var(--muted); font-size:14px}
-  .pv-row{padding:9px 6px; border-bottom:1px solid var(--soft)}
+  .pv-row{padding:12px 6px; border-bottom:1px solid var(--soft)}
   .pv-row:last-child{border-bottom:none}
-  .pv-row.sold{background:var(--sold); border-radius:8px}
-  .pv-row .r-top{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-  .pv-row .r-serial{font-weight:700; direction:ltr}
-  .pv-row .r-meta{color:var(--muted); font-size:14px}
-  .pv-row .r-sold{margin-right:auto; color:var(--gold); font-weight:700; font-size:13px}
-  .pv-row .r-money{display:flex; gap:16px; margin-top:3px; font-size:14px}
+  .pv-row.sold{background:var(--sold); border-radius:10px; padding:12px 10px}
+  .pv-row .r-l1{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+  .pv-row .r-serial{font-size:17px; font-weight:800; color:var(--ink); direction:ltr}
+  .pv-row .r-spec{font-size:15.5px; color:var(--muted); direction:ltr; unicode-bidi:isolate}
+  .pv-row .r-soldtag{margin-right:auto; color:var(--gold); font-weight:700; font-size:14px}
+  .pv-row .r-l2{display:flex; gap:20px; margin-top:5px; font-size:15.5px; color:var(--muted)}
+  .pv-row .r-l2 b{color:var(--ink); font-weight:700}
+  .pv-row .r-sale b{color:var(--accent-d)}
   @media (max-width:520px){ .pv-stats{grid-template-columns:repeat(2,1fr)} .pv-head h2{font-size:22px} }
   .guide-view{padding:6px 4px 60px; max-width:900px; margin:0 auto}
   .guide-hero{background:linear-gradient(135deg,#0f7b6c,#3d4a8a); color:#fff; border-radius:16px;
@@ -1280,19 +1282,26 @@ function buildPreview(){
     let c=0,s=0,wt=0,st=0;
     const rowsHtml=rows.map(r=>{
       const rc=rowCost(r), rs=rowSale(r); c+=rc; s+=rs; wt+=num(r.weight); st+=num(r.stones); if(r.sold) gSold+=rs;
+      const spec=[ r.weight?fmtNum(num(r.weight))+' ct':'', r.shape?escapeHtml(r.shape):'' ].filter(Boolean).join(' · ');
       return `<div class="pv-row${r.sold?' sold':''}">
-        <div class="r-top"><span class="r-serial">${escapeHtml(r.serial||'—')}</span>
-          <span class="r-meta">${r.weight?fmtNum(num(r.weight))+' ct':''}${r.shape?' · '+escapeHtml(r.shape):''}</span>
-          ${r.sold?'<span class="r-sold">✓ נמכר</span>':''}</div>
-        <div class="r-money"><span>עלות ${fmtMoney(rc)}</span>${r.sale?`<span>מכירה ${fmtMoney(rs)}</span>`:''}</div>
+        <div class="r-l1">
+          <b class="r-serial">${escapeHtml(r.serial||'—')}</b>
+          ${spec?`<span class="r-spec">${spec}</span>`:''}
+          ${r.sold?'<span class="r-soldtag">✓ נמכר</span>':''}
+        </div>
+        <div class="r-l2">
+          <span>עלות <b>${fmtMoney(rc)}</b></span>
+          ${r.sale?`<span class="r-sale">מכירה <b>${fmtMoney(rs)}</b></span>`:''}
+        </div>
       </div>`;
     }).join('');
     gCost+=c; gSale+=s; gWt+=wt; gStones+=st; gRows+=rows.length;
     const code=vendorCode(v);
+    const sub=`${rows.length} אבנים · עלות ${fmtMoney(c)}`+(s>0?` · מכירה ${fmtMoney(s)} · רווח ${fmtMoney(s-c)}`:'');
     return `<div class="pv-vendor">
       <div class="pv-vendor-head">
         <span class="pv-vname">${escapeHtml(v.name)}${code?` <span class="vcode-badge">${escapeHtml(code)}</span>`:''}</span>
-        <span class="pv-vsub">${rows.length} אבנים · עלות ${fmtMoney(c)} · רווח ${fmtMoney(s-c)}</span>
+        <span class="pv-vsub">${sub}</span>
       </div>
       <div class="pv-rows">${rowsHtml}</div>
     </div>`;
