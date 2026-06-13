@@ -259,6 +259,30 @@
   .sum-table tr.is-sold{background:var(--sold)!important}
   .sum-table tfoot td{background:#f1ede3; font-weight:800; color:var(--accent-d); padding:11px 8px}
   .sum-table tfoot .lbl{text-align:right; color:var(--accent-d)}
+  /* friendly mobile preview */
+  .preview-view{padding:6px 4px 60px; max-width:760px; margin:0 auto}
+  .pv-head{margin:8px 4px 14px}
+  .pv-head h2{margin:0; font-size:24px; color:var(--accent-d)}
+  .pv-head .pv-trip{color:var(--muted); font-size:15px; margin-top:2px}
+  .pv-stats{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px}
+  .pv-stat{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 8px; text-align:center}
+  .pv-stat .lbl{color:var(--muted); font-size:13px; margin-bottom:4px}
+  .pv-stat .num{font-size:20px; font-weight:800; color:var(--accent-d); direction:ltr}
+  .pv-stat.profit .num{color:var(--gold)}
+  .pv-vendor{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:14px; box-shadow:0 2px 8px rgba(0,0,0,.04)}
+  .pv-vendor-head{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
+    margin-bottom:8px; border-bottom:1px solid var(--line); padding-bottom:8px}
+  .pv-vname{font-size:19px; font-weight:700; color:var(--accent-d)}
+  .pv-vsub{color:var(--muted); font-size:14px}
+  .pv-row{padding:9px 6px; border-bottom:1px solid var(--soft)}
+  .pv-row:last-child{border-bottom:none}
+  .pv-row.sold{background:var(--sold); border-radius:8px}
+  .pv-row .r-top{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .pv-row .r-serial{font-weight:700; direction:ltr}
+  .pv-row .r-meta{color:var(--muted); font-size:14px}
+  .pv-row .r-sold{margin-right:auto; color:var(--gold); font-weight:700; font-size:13px}
+  .pv-row .r-money{display:flex; gap:16px; margin-top:3px; font-size:14px}
+  @media (max-width:520px){ .pv-stats{grid-template-columns:repeat(2,1fr)} .pv-head h2{font-size:22px} }
   .guide-view{padding:6px 4px 60px; max-width:900px; margin:0 auto}
   .guide-hero{background:linear-gradient(135deg,#0f7b6c,#3d4a8a); color:#fff; border-radius:16px;
     padding:26px; margin:14px 0 26px; display:flex; gap:24px; align-items:center; flex-wrap:wrap;
@@ -312,6 +336,7 @@
     <div class="menu-section">
       <div class="menu-title">ניווט</div>
       <button class="menu-item active" id="navTracker" onclick="showView('tracker')">🏠 מסך המעקב</button>
+      <button class="menu-item" id="navPreview" onclick="showView('preview')">👁️ תצוגה מהירה</button>
       <button class="menu-item" id="navHistory" onclick="showView('history')">🧳 היסטוריית נסיעות</button>
       <button class="menu-item guide" id="navGuide" onclick="showView('guide')">📖 מדריך שימוש</button>
     </div>
@@ -355,6 +380,7 @@
 
     <div class="tabs" id="tabs"></div>
     <main id="main"></main>
+    <section class="preview-view" id="previewView" style="display:none"></section>
     <section class="history-view" id="historyView" style="display:none"></section>
     <section class="guide-view" id="guideView" style="display:none"></section>
   </div>
@@ -464,7 +490,7 @@ function renderTripBar(){
     const o=document.createElement('option'); o.value=t.id; o.textContent=tripLabel(t);
     if(t.id===state.activeTripId) o.selected=true; sel.appendChild(o);
   });
-  sel.onchange=()=>{ state.activeTripId=sel.value; save(); render(); };
+  sel.onchange=()=>{ state.activeTripId=sel.value; save(); render(); if(currentView!=='tracker') showView(currentView); };
   const t=activeTrip();
   const dt=$('tripDate'); dt.value=t.date||'';
   dt.onchange=()=>{ t.date=dt.value; save(); renderTripBar(); };
@@ -1222,16 +1248,21 @@ function toggleMenu(force){
   document.body.classList.toggle('menu-open', open);
 }
 let guideBuilt=false;
-function showView(view){            // 'tracker' | 'history' | 'guide'
+let currentView='tracker';
+function showView(view){            // 'tracker' | 'preview' | 'history' | 'guide'
+  currentView=view;
   const isTracker = view==='tracker';
-  document.querySelector('.tripbar').style.display = isTracker ? '' : 'none';
+  document.querySelector('.tripbar').style.display = (isTracker||view==='preview') ? '' : 'none';
   $('tabs').style.display = isTracker ? '' : 'none';
   $('main').style.display = isTracker ? '' : 'none';
+  if(view==='preview') buildPreview();          // always rebuilt – data is live
+  $('previewView').style.display = view==='preview' ? 'block' : 'none';
   if(view==='guide' && !guideBuilt){ buildGuide(); guideBuilt=true; }
   $('guideView').style.display = view==='guide' ? 'block' : 'none';
   if(view==='history') buildHistory();          // always rebuilt – data is live
   $('historyView').style.display = view==='history' ? 'block' : 'none';
   $('navTracker').classList.toggle('active', isTracker);
+  $('navPreview').classList.toggle('active', view==='preview');
   $('navHistory').classList.toggle('active', view==='history');
   $('navGuide').classList.toggle('active', view==='guide');
   toggleMenu(false);
@@ -1239,6 +1270,53 @@ function showView(view){            // 'tracker' | 'history' | 'guide'
 }
 function showGuide(on){ showView(on ? 'guide' : 'tracker'); }
 function openTrip(id){ state.activeTripId=id; save(); render(); showView('tracker'); }
+
+/* ----- friendly mobile preview of the active trip ----- */
+function buildPreview(){
+  const trip=activeTrip();
+  let gCost=0,gSale=0,gSold=0,gWt=0,gStones=0,gRows=0;
+  const vendorsHtml = trip.vendors.map(v=>{
+    const rows=v.rows.filter(hasData); if(!rows.length) return '';
+    let c=0,s=0,wt=0,st=0;
+    const rowsHtml=rows.map(r=>{
+      const rc=rowCost(r), rs=rowSale(r); c+=rc; s+=rs; wt+=num(r.weight); st+=num(r.stones); if(r.sold) gSold+=rs;
+      return `<div class="pv-row${r.sold?' sold':''}">
+        <div class="r-top"><span class="r-serial">${escapeHtml(r.serial||'—')}</span>
+          <span class="r-meta">${r.weight?fmtNum(num(r.weight))+' ct':''}${r.shape?' · '+escapeHtml(r.shape):''}</span>
+          ${r.sold?'<span class="r-sold">✓ נמכר</span>':''}</div>
+        <div class="r-money"><span>עלות ${fmtMoney(rc)}</span>${r.sale?`<span>מכירה ${fmtMoney(rs)}</span>`:''}</div>
+      </div>`;
+    }).join('');
+    gCost+=c; gSale+=s; gWt+=wt; gStones+=st; gRows+=rows.length;
+    const code=vendorCode(v);
+    return `<div class="pv-vendor">
+      <div class="pv-vendor-head">
+        <span class="pv-vname">${escapeHtml(v.name)}${code?` <span class="vcode-badge">${escapeHtml(code)}</span>`:''}</span>
+        <span class="pv-vsub">${rows.length} אבנים · עלות ${fmtMoney(c)} · רווח ${fmtMoney(s-c)}</span>
+      </div>
+      <div class="pv-rows">${rowsHtml}</div>
+    </div>`;
+  }).join('');
+
+  const headHtml=`<div class="pv-head"><h2>👁️ תצוגה מהירה</h2><div class="pv-trip">${escapeHtml(tripLabel(trip))}</div></div>`;
+  if(gRows===0){
+    $('previewView').innerHTML=`<div class="pv">${headHtml}<div class="empty">עדיין אין נתונים בנסיעה הזו 💎</div></div>`;
+    return;
+  }
+  $('previewView').innerHTML=`
+    <div class="pv">
+      ${headHtml}
+      <div class="pv-stats">
+        <div class="pv-stat"><div class="lbl">סה"כ עלות</div><div class="num">${fmtMoney(gCost)}</div></div>
+        <div class="pv-stat"><div class="lbl">סה"כ מכירה</div><div class="num">${fmtMoney(gSale)}</div></div>
+        <div class="pv-stat profit"><div class="lbl">רווח</div><div class="num">${fmtMoney(gSale-gCost)}</div></div>
+        <div class="pv-stat"><div class="lbl">נמכר בפועל</div><div class="num">${fmtMoney(gSold)}</div></div>
+        <div class="pv-stat"><div class="lbl">סה"כ קראט</div><div class="num">${fmtNum(gWt)}</div></div>
+        <div class="pv-stat"><div class="lbl">אבנים</div><div class="num">${fmtNum(gStones)}</div></div>
+      </div>
+      ${vendorsHtml}
+    </div>`;
+}
 function buildHistory(){
   const trips=[...state.trips].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   let gCost=0,gSale=0,gSold=0;
