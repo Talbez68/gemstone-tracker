@@ -176,7 +176,7 @@
     header,.tripbar,.tabs,.toolbar,.vendor-actions,.add-row-bar,.settings,
     details.help,.del-row,.tab-add,.col-del,#numToast,
     .sidemenu,.menu-toggle,.menu-backdrop,.guide-view,
-    .sales-col,.sales-card{display:none!important}
+    .sales-col,.sales-card,.no-print{display:none!important}
     main{padding:0}
     .panel{border:none; box-shadow:none; border-radius:0; padding:0}
     thead th{position:static}
@@ -720,7 +720,8 @@ function buildSummary(trip){
   wrap.appendChild(table);
   const g=document.createElement('div'); g.className='totals'; g.style.marginTop='24px';
   g.innerHTML=`
-    <div class="card"><div class="k">סה"כ אבנים</div><div class="v">${fmtNum(gStones)}</div></div>
+    <div class="card no-print"><div class="k">סה"כ אבנים</div><div class="v">${fmtNum(gStones)}</div></div>
+    <div class="card print-only"><div class="k">סה"כ קראט</div><div class="v">${fmtNum(gWt)}</div></div>
     <div class="card"><div class="k">סה"כ עלות</div><div class="v">${fmtMoney(gCost)}</div></div>
     <div class="card sales-card"><div class="k">סה"כ מכירה (פוטנציאל)</div><div class="v">${fmtMoney(gSale)}</div></div>
     <div class="card profit sales-card"><div class="k">רווח כולל</div><div class="v">${fmtMoney(gSale-gCost)}</div></div>`;
