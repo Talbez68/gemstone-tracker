@@ -721,7 +721,7 @@ function buildSummary(trip){
   const g=document.createElement('div'); g.className='totals'; g.style.marginTop='24px';
   g.innerHTML=`
     <div class="card no-print"><div class="k">סה"כ אבנים</div><div class="v">${fmtNum(gStones)}</div></div>
-    <div class="card print-only"><div class="k">סה"כ קראט</div><div class="v">${fmtNum(gWt)}</div></div>
+    <div class="card"><div class="k">סה"כ קראט</div><div class="v">${fmtNum(gWt)}</div></div>
     <div class="card"><div class="k">סה"כ עלות</div><div class="v">${fmtMoney(gCost)}</div></div>
     <div class="card sales-card"><div class="k">סה"כ מכירה (פוטנציאל)</div><div class="v">${fmtMoney(gSale)}</div></div>
     <div class="card profit sales-card"><div class="k">רווח כולל</div><div class="v">${fmtMoney(gSale-gCost)}</div></div>`;
