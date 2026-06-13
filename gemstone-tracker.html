@@ -406,7 +406,7 @@ function applyVendorCodes(t){
 }
 function newTrip(name){
   const t={id:rid('t'), name, date:today(), activeId:null,
-    vendors:[newVendor('גדי','GD'),newVendor('פינק'),newVendor('גמסיס'),newVendor('ערן')]};
+    vendors:[newVendor('גדי','GD'),newVendor('פינק'),newVendor('מזרחי','RM'),newVendor('שפירא','MS')]};
   t.activeId=t.vendors[0].id; return t;
 }
 function defaultState(){
