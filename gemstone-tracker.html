@@ -247,6 +247,17 @@
   .hist-table tr.hist-active{background:var(--sold)!important}
   .h-badge{background:var(--accent); color:#fff; font-size:11px; padding:2px 8px; border-radius:8px; font-weight:600; margin-right:6px}
   .hist-foot td{background:#f1ede3; font-weight:800; color:var(--accent-d)}
+  /* summary: one combined table of all vendors */
+  .sum-table{border-collapse:collapse; width:100%; font-size:15px; margin-top:6px}
+  .sum-table th,.sum-table td{border:1px solid var(--line); padding:9px 8px; text-align:center}
+  .sum-table thead th{background:var(--soft); color:var(--accent-d); font-weight:700; position:static; font-size:14px}
+  .sum-table tbody tr:nth-child(even){background:#fbfaf6}
+  .sum-table td.auto{background:var(--auto); font-weight:700; color:var(--accent-d)}
+  .sum-table td.s-vendor{text-align:right; font-weight:700; color:var(--accent-d); white-space:nowrap}
+  .sum-table tr.vstart td{border-top:2px solid var(--gold)}
+  .sum-table tr.is-sold{background:var(--sold)!important}
+  .sum-table tfoot td{background:#f1ede3; font-weight:800; color:var(--accent-d); padding:11px 8px}
+  .sum-table tfoot .lbl{text-align:right; color:var(--accent-d)}
   .guide-view{padding:6px 4px 60px; max-width:900px; margin:0 auto}
   .guide-hero{background:linear-gradient(135deg,#0f7b6c,#3d4a8a); color:#fff; border-radius:16px;
     padding:26px; margin:14px 0 26px; display:flex; gap:24px; align-items:center; flex-wrap:wrap;
@@ -639,42 +650,43 @@ function buildSummary(trip){
   head.innerHTML=`<h2>📊 סיכום כל הספקים</h2><span class="meta">${escapeHtml(tripLabel(trip))}</span>`;
   wrap.appendChild(head);
 
-  let gCost=0,gSale=0,gSold=0,gStones=0,gWt=0,gRows=0;
+  let gCost=0,gSale=0,gSold=0,gStones=0,gWt=0,gRows=0,idx=0;
+  const table=document.createElement('table'); table.className='sum-table';
+  table.innerHTML=`<thead><tr>
+    <th>ספק</th><th>מספר</th><th>סריה</th><th>משקל</th><th>מספר אבנים</th><th>צורה</th>
+    <th>עלות לקראט</th><th>סה"כ עלות</th><th class="sales-col">מכירה לקראט</th><th class="sales-col">סה"כ מכירה</th><th class="sales-col">נמכר</th>
+  </tr></thead>`;
+  const tb=document.createElement('tbody');
   trip.vendors.forEach(v=>{
     const rows=v.rows.filter(hasData); if(rows.length===0) return;
-    const sv=document.createElement('div'); sv.className='summary-vendor';
-    sv.innerHTML=`<h3>${escapeHtml(v.name)}</h3>`;
-    const table=document.createElement('table');
-    table.innerHTML=`<thead><tr>
-      <th>מספר</th><th>סריה</th><th>משקל</th><th>מספר אבנים</th><th>צורה</th>
-      <th>עלות לקראט</th><th>סה"כ עלות</th><th class="sales-col">מכירה לקראט</th><th class="sales-col">סה"כ מכירה</th><th class="sales-col">נמכר</th>
-    </tr></thead>`;
-    const tb=document.createElement('tbody'); let tc=0,ts=0,st=0,wt=0;
     rows.forEach((r,i)=>{
-      const c=rowCost(r),s=rowSale(r); tc+=c; ts+=s; st+=num(r.stones); wt+=num(r.weight);
-      const tr=document.createElement('tr'); if(r.sold) tr.className='is-sold';
-      tr.innerHTML=`<td class="col-num">${i+1}</td><td>${escapeHtml(r.serial)}</td>
+      const c=rowCost(r),s=rowSale(r);
+      gCost+=c; gSale+=s; gStones+=num(r.stones); gWt+=num(r.weight); gRows++; idx++;
+      if(r.sold) gSold+=s;
+      const tr=document.createElement('tr');
+      tr.className=(r.sold?'is-sold ':'')+(i===0?'vstart':'').trim();
+      tr.innerHTML=`<td class="s-vendor">${i===0?escapeHtml(v.name):''}</td>
+        <td class="col-num">${idx}</td><td>${escapeHtml(r.serial)}</td>
         <td>${r.weight?fmtNum(num(r.weight)):''}</td><td>${r.stones||''}</td><td>${escapeHtml(r.shape)}</td>
         <td>${r.cost?fmtMoney(num(r.cost)):''}</td><td class="auto">${fmtMoney(c)}</td>
         <td class="sales-col">${r.sale?fmtMoney(num(r.sale)):''}</td><td class="auto sales-col">${fmtMoney(s)}</td>
         <td class="sales-col">${r.sold?'✓':''}</td>`;
       tb.appendChild(tr);
     });
-    table.appendChild(tb);
-    const tf=document.createElement('tfoot');
-    tf.innerHTML=`<tr><td class="lbl" colspan="2">סה"כ ${escapeHtml(v.name)}</td>
-      <td>${fmtNum(wt)}</td><td>${fmtNum(st)}</td><td></td><td></td>
-      <td class="auto">${fmtMoney(tc)}</td><td class="sales-col"></td><td class="auto sales-col">${fmtMoney(ts)}</td><td class="sales-col"></td></tr>`;
-    table.appendChild(tf); sv.appendChild(table); wrap.appendChild(sv);
-    gCost+=tc; gSale+=ts; gStones+=st; gWt+=wt; gRows+=rows.length;
-    gSold+=rows.filter(r=>r.sold).reduce((a,r)=>a+rowSale(r),0);
   });
+  table.appendChild(tb);
+  const tf=document.createElement('tfoot');
+  tf.innerHTML=`<tr><td class="lbl" colspan="3">סה"כ כל הספקים</td>
+    <td>${fmtNum(gWt)}</td><td>${fmtNum(gStones)}</td><td></td><td></td>
+    <td class="auto">${fmtMoney(gCost)}</td><td class="sales-col"></td><td class="auto sales-col">${fmtMoney(gSale)}</td><td class="sales-col"></td></tr>`;
+  table.appendChild(tf);
 
   if(gRows===0){
     const e=document.createElement('div'); e.className='empty';
     e.innerHTML='עדיין אין נתונים בנסיעה הזו. עברו ללשונית של ספק והתחילו למלא 💎';
     wrap.appendChild(e); return wrap;
   }
+  wrap.appendChild(table);
   const g=document.createElement('div'); g.className='totals'; g.style.marginTop='24px';
   g.innerHTML=`
     <div class="card"><div class="k">סה"כ אבנים</div><div class="v">${fmtNum(gStones)}</div></div>
