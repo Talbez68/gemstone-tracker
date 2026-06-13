@@ -3,7 +3,7 @@
   "short_name": "אבני חן",
   "lang": "he",
   "dir": "rtl",
-  "start_url": "gemstone-tracker.html",
+  "start_url": "gemstone-tracker.html#preview",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f4f1ea",

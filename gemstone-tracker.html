@@ -261,9 +261,12 @@
   .sum-table tfoot .lbl{text-align:right; color:var(--accent-d)}
   /* friendly mobile preview */
   .preview-view{padding:6px 4px 60px; max-width:760px; margin:0 auto}
-  .pv-head{margin:8px 4px 14px}
+  .pv-head{margin:8px 4px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap}
   .pv-head h2{margin:0; font-size:24px; color:var(--accent-d)}
   .pv-head .pv-trip{color:var(--muted); font-size:15px; margin-top:2px}
+  .pv-install{background:var(--accent); color:#fff; border:none; border-radius:10px; padding:11px 16px;
+    font-family:inherit; font-size:15px; font-weight:700; cursor:pointer; white-space:nowrap}
+  .pv-install:hover{background:var(--accent-d)}
   .pv-stats{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px}
   .pv-stat{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 8px; text-align:center}
   .pv-stat .lbl{color:var(--muted); font-size:13px; margin-bottom:4px}
@@ -1295,10 +1298,31 @@ function showView(view){            // 'tracker' | 'preview' | 'history' | 'guid
   $('navHistory').classList.toggle('active', view==='history');
   $('navStats').classList.toggle('active', view==='stats');
   $('navGuide').classList.toggle('active', view==='guide');
+  // reflect preview in the URL so an "add to home screen" shortcut opens it directly
+  try{ const want=view==='preview'?'#preview':''; if(location.hash!==want) history.replaceState(null,'',location.pathname+location.search+want); }catch(e){}
   toggleMenu(false);
   window.scrollTo(0,0);
 }
 function showGuide(on){ showView(on ? 'guide' : 'tracker'); }
+
+/* PWA install ("save to home") — captured prompt for Android/desktop Chrome/Edge */
+let deferredInstall=null;
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferredInstall=e; });
+async function saveToHome(){
+  if(deferredInstall){
+    deferredInstall.prompt();
+    try{ await deferredInstall.userChoice; }catch(e){}
+    deferredInstall=null; return;
+  }
+  if(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches){
+    alert('האפליקציה כבר מותקנת על המכשיר 👍'); return;
+  }
+  if(/iphone|ipad|ipod/i.test(navigator.userAgent)){
+    alert('הוספה למסך הבית (אייפון):\n\n1) לחצו על כפתור השיתוף ⬆️ (למטה בספארי).\n2) בחרו "הוסף למסך הבית".\n3) לחצו "הוסף".\n\nמעכשיו יהיה סמל במסך הבית שפותח ישר את התצוגה המהירה 💎');
+  } else {
+    alert('הוספה למסך הבית:\n\nפתחו את תפריט הדפדפן (⋮) ובחרו "התקן אפליקציה" / "הוספה למסך הבית".\nאם האפשרות לא מופיעה – ייתכן שהאפליקציה כבר מותקנת.');
+  }
+}
 function openTrip(id){ state.activeTripId=id; save(); render(); showView('tracker'); }
 
 /* ----- vendor statistics across all trips (by vendor name) ----- */
@@ -1411,7 +1435,10 @@ function buildPreview(){
     </div>`;
   }).join('');
 
-  const headHtml=`<div class="pv-head"><h2>👁️ תצוגה מהירה</h2><div class="pv-trip">${escapeHtml(tripLabel(trip))}</div></div>`;
+  const headHtml=`<div class="pv-head">
+    <div><h2>👁️ תצוגה מהירה</h2><div class="pv-trip">${escapeHtml(tripLabel(trip))}</div></div>
+    <button class="pv-install" onclick="saveToHome()" title="הוספת קיצור דרך למסך הבית של הטלפון, שפותח ישר את התצוגה המהירה">📲 שמור למסך הבית</button>
+  </div>`;
   if(gRows===0){
     $('previewView').innerHTML=`<div class="pv">${headHtml}<div class="empty">עדיין אין נתונים בנסיעה הזו 💎</div></div>`;
     return;
@@ -1629,7 +1656,7 @@ function buildGuide(){
 
 window.addEventListener('beforeunload',save);
 render();
-showGuide(false);
+showView(/preview/.test(location.hash) ? 'preview' : 'tracker');   // home-screen shortcut opens straight to preview
 initSync();
 
 /* PWA: register the service worker when served over http(s) (GitHub Pages),
