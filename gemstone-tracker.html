@@ -312,7 +312,11 @@
   .pv-row .f .fl{color:var(--muted)}
   .pv-row .f .fv{font-weight:700; color:var(--ink); direction:ltr; unicode-bidi:isolate}
   .pv-row .f.sale .fv{color:var(--accent-d)}
+  .pv-row .f.note{grid-column:1 / -1; display:block}
+  .pv-row .f.note .fl{margin-left:6px}
+  .pv-row .f.note .fv{direction:rtl; unicode-bidi:normal; font-weight:600}
   @media (max-width:380px){ .pv-row .r-grid{grid-template-columns:1fr} }
+  .sum-table td.s-notes{text-align:right; color:var(--muted); font-size:14px; white-space:normal; max-width:200px}
   /* vendor statistics */
   .stats-view{padding:6px 4px 60px}
   .stats-wrap{max-width:820px; margin:0 auto}
@@ -766,7 +770,7 @@ function buildSummary(trip){
   const table=document.createElement('table'); table.className='sum-table';
   table.innerHTML=`<thead><tr>
     <th>מספר</th><th>סריה</th><th>משקל</th><th class="col-stones">מספר אבנים</th><th>צורה</th>
-    <th>עלות לקראט</th><th>סה"כ עלות</th><th class="sales-col">מכירה לקראט</th><th class="sales-col">סה"כ מכירה</th><th class="sales-col">נמכר</th>
+    <th>עלות לקראט</th><th>סה"כ עלות</th><th>הערות</th><th class="sales-col">מכירה לקראט</th><th class="sales-col">סה"כ מכירה</th><th class="sales-col">נמכר</th>
   </tr></thead>`;
   const tb=document.createElement('tbody');
   trip.vendors.forEach(v=>{
@@ -779,7 +783,7 @@ function buildSummary(trip){
       if(r.sold) tr.className='is-sold';
       tr.innerHTML=`<td class="col-num">${idx}</td><td>${escapeHtml(r.serial)}</td>
         <td>${r.weight?fmtNum(num(r.weight)):''}</td><td class="col-stones">${r.stones||''}</td><td>${escapeHtml(r.shape)}</td>
-        <td>${r.cost?fmtMoney(num(r.cost)):''}</td><td class="auto">${fmtMoney(c)}</td>
+        <td>${r.cost?fmtMoney(num(r.cost)):''}</td><td class="auto">${fmtMoney(c)}</td><td class="s-notes">${escapeHtml(r.notes)}</td>
         <td class="sales-col">${r.sale?fmtMoney(num(r.sale)):''}</td><td class="auto sales-col">${fmtMoney(s)}</td>
         <td class="sales-col">${r.sold?'✓':''}</td>`;
       tb.appendChild(tr);
@@ -789,7 +793,7 @@ function buildSummary(trip){
   const tf=document.createElement('tfoot');
   tf.innerHTML=`<tr><td class="lbl" colspan="2">סה"כ כל הספקים</td>
     <td>${fmtNum(gWt)}</td><td class="col-stones">${fmtNum(gStones)}</td><td></td><td></td>
-    <td class="auto">${fmtMoney(gCost)}</td><td class="sales-col"></td><td class="auto sales-col">${fmtMoney(gSale)}</td><td class="sales-col"></td></tr>`;
+    <td class="auto">${fmtMoney(gCost)}</td><td></td><td class="sales-col"></td><td class="auto sales-col">${fmtMoney(gSale)}</td><td class="sales-col"></td></tr>`;
   table.appendChild(tf);
 
   if(gRows===0){
@@ -1451,6 +1455,7 @@ function buildPreview(){
       if(r.shape) fields.push(['צורה', escapeHtml(r.shape)]);
       fields.push(['עלות', fmtMoney(rc)]);
       if(r.sale) fields.push(['מכירה', fmtMoney(rs), 'sale']);
+      if(r.notes) fields.push(['הערות', escapeHtml(r.notes), 'note']);
       const fieldsHtml=fields.map(f=>`<div class="f${f[2]?' '+f[2]:''}"><span class="fl">${f[0]}</span><span class="fv">${f[1]}</span></div>`).join('');
       return `<div class="pv-row${r.sold?' sold':''}">
         <div class="r-head"><b class="r-serial">${escapeHtml(r.serial||'—')}</b>${r.sold?'<span class="r-soldtag">✓ נמכר</span>':''}</div>
