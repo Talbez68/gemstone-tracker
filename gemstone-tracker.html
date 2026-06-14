@@ -105,6 +105,8 @@
   .btn-danger{background:#fff; border:1px solid #ecc; color:var(--danger)}
 
   table{border-collapse:collapse; width:100%; font-size:15px}
+  /* wide tables scroll horizontally inside their own box so the page always fits the screen */
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch}
   th,td{border:1px solid var(--line); padding:0; text-align:center}
   thead th{
     background:var(--soft); color:var(--accent-d); font-weight:700;
@@ -172,6 +174,18 @@
   details.help ol{margin:6px 0 14px; padding-right:22px; line-height:1.7}
   details.help li b{color:var(--accent-d)}
 
+  /* ---------- phone tweaks ---------- */
+  @media (max-width:760px){
+    body{font-size:16px}
+    main{padding:0 10px 60px}
+    .panel{padding:12px}
+    /* keep the data tables readable and swipeable instead of crushed */
+    .table-scroll>table{min-width:680px}
+    /* 16px inputs prevent iOS from auto-zooming when a field is tapped */
+    tbody td input, tbody td select{font-size:16px}
+    header h1{font-size:19px}
+  }
+
   /* ---------- print ---------- */
   @media print{
     body{background:#fff; font-size:12px}
@@ -181,6 +195,7 @@
     .sales-col,.sales-card,.no-print{display:none!important}
     main{padding:0}
     .panel{border:none; box-shadow:none; border-radius:0; padding:0}
+    .table-scroll{overflow:visible}
     thead th{position:static}
     th,td{border:1px solid #999}
     tbody td input,tbody td select{padding:4px 3px; font-size:12px}
@@ -586,7 +601,7 @@ function buildVendor(trip,v){
   const tb=document.createElement('tbody');
   v.rows.forEach((r,i)=>tb.appendChild(buildRow(v,r,i)));
   table.appendChild(tb); table.appendChild(footerHTML(v));
-  wrap.appendChild(table);
+  const sc=document.createElement('div'); sc.className='table-scroll'; sc.appendChild(table); wrap.appendChild(sc);
 
   const bar=document.createElement('div'); bar.className='add-row-bar';
   const addBtn=document.createElement('button'); addBtn.className='btn btn-add'; addBtn.textContent='➕ הוסף שורות';
@@ -778,7 +793,7 @@ function buildSummary(trip){
     e.innerHTML='עדיין אין נתונים בנסיעה הזו. עברו ללשונית של ספק והתחילו למלא 💎';
     wrap.appendChild(e); return wrap;
   }
-  wrap.appendChild(table);
+  const sc=document.createElement('div'); sc.className='table-scroll'; sc.appendChild(table); wrap.appendChild(sc);
   const g=document.createElement('div'); g.className='totals'; g.style.marginTop='24px';
   g.innerHTML=`
     <div class="card no-print"><div class="k">סה"כ אבנים</div><div class="v">${fmtNum(gStones)}</div></div>
@@ -1496,7 +1511,7 @@ function buildHistory(){
     <div class="panel">
       <div class="vendor-head"><h2>🧳 היסטוריית נסיעות</h2>
         <span class="meta">${trips.length} נסיעות בסך הכול</span></div>
-      <table class="hist-table">
+      <div class="table-scroll"><table class="hist-table">
         <thead><tr>
           <th>נסיעה</th><th>תאריך</th><th>ספקים</th><th>שורות</th>
           <th>סה"כ עלות</th><th>סה"כ מכירה</th><th>נמכר בפועל</th><th>רווח</th><th></th>
@@ -1507,7 +1522,7 @@ function buildHistory(){
           <td>${fmtMoney(gCost)}</td><td>${fmtMoney(gSale)}</td><td>${fmtMoney(gSold)}</td>
           <td class="h-profit">${fmtMoney(gSale-gCost)}</td><td></td>
         </tr></tfoot>
-      </table>
+      </table></div>
       <div class="totals" style="margin-top:18px">
         <div class="card"><div class="k">סה"כ עלות (כל הנסיעות)</div><div class="v">${fmtMoney(gCost)}</div></div>
         <div class="card"><div class="k">סה"כ מכירה (פוטנציאל)</div><div class="v">${fmtMoney(gSale)}</div></div>
