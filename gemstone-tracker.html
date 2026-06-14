@@ -105,8 +105,8 @@
   .btn-danger{background:#fff; border:1px solid #ecc; color:var(--danger)}
 
   table{border-collapse:collapse; width:100%; font-size:15px}
-  /* wide tables scroll horizontally inside their own box so the page always fits the screen */
-  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch}
+  /* on phones the wide tables scroll horizontally inside their own box (set in the phone media query);
+     on desktop .table-scroll is a plain block so the sticky header keeps working */
   th,td{border:1px solid var(--line); padding:0; text-align:center}
   thead th{
     background:var(--soft); color:var(--accent-d); font-weight:700;
@@ -180,7 +180,10 @@
     main{padding:0 10px 60px}
     .panel{padding:12px}
     /* keep the data tables readable and swipeable instead of crushed */
+    .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch}
     .table-scroll>table{min-width:680px}
+    /* inside a scroll box the sticky header would leave an empty gap – disable it here */
+    .table-scroll thead th{position:static; top:auto}
     /* 16px inputs prevent iOS from auto-zooming when a field is tapped */
     tbody td input, tbody td select{font-size:16px}
     header h1{font-size:19px}
