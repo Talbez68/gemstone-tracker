@@ -243,11 +243,12 @@
   .rst-list{display:flex; flex-direction:column; gap:8px}
   .rst-item{display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--soft); border:1px solid var(--line); border-radius:10px; padding:11px 14px}
   .rst-meta{color:var(--muted); font-size:14px}
-  .menu-toggle{display:none; background:rgba(255,255,255,.18); color:#fff; border:none;
+  .menu-toggle{display:inline-flex; align-items:center; background:rgba(255,255,255,.18); color:#fff; border:none;
     border-radius:9px; font-size:22px; line-height:1; padding:6px 12px; cursor:pointer}
   .menu-backdrop{display:none}
+  /* collapse the docked menu at any width (handles phones that report a wide/desktop viewport) */
+  body.menu-collapsed .sidemenu{display:none}
   @media (max-width:900px){
-    .menu-toggle{display:inline-flex; align-items:center}
     .sidemenu{position:fixed; top:0; right:0; bottom:0; width:86vw; max-width:330px; z-index:60;
       transform:translateX(105%); transition:transform .25s; box-shadow:-6px 0 24px rgba(0,0,0,.25); border-left:none}
     body.menu-open .sidemenu{transform:translateX(0)}
@@ -378,7 +379,7 @@
 </header>
 <div id="syncBanner" class="syncbanner" style="display:none"></div>
 
-<div class="menu-backdrop" id="menuBackdrop" onclick="toggleMenu(false)"></div>
+<div class="menu-backdrop" id="menuBackdrop" onclick="closeDrawer()"></div>
 <div class="layout">
   <aside class="sidemenu" id="sideMenu">
     <div class="menu-section">
@@ -1117,7 +1118,7 @@ async function saveSnapshot(){
 /* ----- in-app restore-a-previous-version UI ----- */
 function rowsIn(d){ let n=0; (d&&d.trips||[]).forEach(t=>(t.vendors||[]).forEach(v=>n+=(v.rows||[]).filter(hasData).length)); return n; }
 async function openRestore(){
-  toggleMenu(false);
+  closeDrawer();
   const all=(await snapAll()).sort((a,b)=>b.day.localeCompare(a.day));
   let html='<div class="rst-box"><h2>↩️ שחזור גרסה קודמת</h2>';
   if(!all.length){ html+='<p>אין עדיין גרסאות שמורות. הן נוצרות אוטומטית תוך כדי העבודה (גרסה אחת ליום).</p>'; }
@@ -1293,10 +1294,15 @@ async function initSync(){
 /* ============================================================
    RIGHT-SIDE MENU + USAGE GUIDE
    ============================================================ */
-function toggleMenu(force){
-  const open = (typeof force==='boolean') ? force : !document.body.classList.contains('menu-open');
-  document.body.classList.toggle('menu-open', open);
+function toggleMenu(){
+  // narrow screens: slide-in drawer. wide / desktop-reported viewports: collapse the docked menu.
+  if(window.matchMedia('(max-width:900px)').matches){
+    document.body.classList.toggle('menu-open');
+  } else {
+    document.body.classList.toggle('menu-collapsed');
+  }
 }
+function closeDrawer(){ document.body.classList.remove('menu-open'); }   // close the mobile drawer (no effect on desktop)
 let guideBuilt=false;
 let currentView='tracker';
 function showView(view){            // 'tracker' | 'preview' | 'history' | 'guide'
@@ -1320,7 +1326,7 @@ function showView(view){            // 'tracker' | 'preview' | 'history' | 'guid
   $('navGuide').classList.toggle('active', view==='guide');
   // reflect preview in the URL so an "add to home screen" shortcut opens it directly
   try{ const want=view==='preview'?'#preview':''; if(location.hash!==want) history.replaceState(null,'',location.pathname+location.search+want); }catch(e){}
-  toggleMenu(false);
+  closeDrawer();
   window.scrollTo(0,0);
 }
 function showGuide(on){ showView(on ? 'guide' : 'tracker'); }
