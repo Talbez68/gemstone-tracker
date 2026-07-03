@@ -1,0 +1,13 @@
+{
+  "name": "gemstone-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Dev tooling for the Gemstone Trader Tracker (the app itself is the single file gemstone-tracker.html).",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1"
+  }
+}

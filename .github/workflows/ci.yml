@@ -1,0 +1,34 @@
+name: CI
+
+# Run the app's smoke/e2e tests on every PR (and on pushes to main) so we
+# catch anything that breaks the app before it ships to GitHub Pages.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# If new commits are pushed to a PR, cancel the older in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: App tests (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run tests
+        run: npm test
