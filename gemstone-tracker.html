@@ -131,6 +131,24 @@
   .del-row{background:none; border:none; cursor:pointer; color:#bbb; font-size:18px; padding:6px}
   .del-row:hover{color:var(--danger)}
   td.col-sold input{width:20px; height:20px; cursor:pointer}
+  /* certificate image column */
+  th.col-cert,td.col-cert{width:62px}
+  .cert-cell{display:flex; align-items:center; justify-content:center; padding:5px}
+  .cert-thumb{width:40px; height:40px; object-fit:cover; border-radius:6px; border:1px solid var(--line);
+    cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.12); background:#fff}
+  .cert-thumb:hover{border-color:var(--accent)}
+  .cert-add{background:none; border:1px dashed var(--line); color:var(--muted); font-size:16px;
+    width:34px; height:34px; border-radius:8px; cursor:pointer; padding:0; line-height:1}
+  .cert-add:hover{border-color:var(--accent); color:var(--accent)}
+  .cert-add:disabled{cursor:default; opacity:.6}
+  .cert-missing{color:var(--muted); font-size:15px}
+  .cert-overlay{position:fixed; inset:0; background:rgba(0,0,0,.8); display:none;
+    align-items:center; justify-content:center; z-index:60; padding:20px}
+  .cert-box{display:flex; flex-direction:column; gap:14px; align-items:center; max-width:96vw; max-height:92vh}
+  .cert-full{max-width:96vw; max-height:78vh; object-fit:contain; border-radius:10px;
+    background:#fff; box-shadow:0 10px 40px rgba(0,0,0,.5)}
+  .cert-actions{display:flex; gap:10px; flex-wrap:wrap; justify-content:center}
+  .sum-cert-thumb{width:34px; height:34px; object-fit:cover; border-radius:5px; border:1px solid var(--line); vertical-align:middle}
   input.num{direction:ltr; text-align:center}
   input.input-invalid{background:#fde8e6!important; box-shadow:inset 0 0 0 2px var(--danger)!important}
   #numToast{
@@ -461,7 +479,7 @@ const COLS = [
   {key:'shape',  label:'צורה',          type:'shape'},
   {key:'cost',   label:'עלות לקראט',    type:'num'},
   {key:'totCost',label:'סה"כ עלות',     type:'auto'},
-  {key:'cert',   label:'תעודה',         type:'cert'},
+  {key:'cert',   label:'תעודה',         type:'certimg'},
   {key:'notes',  label:'הערות',         type:'text'},
   {key:'sale',   label:'מכירה לקראט',   type:'num'},
   {key:'totSale',label:'סה"כ מכירה',    type:'auto'},
@@ -500,10 +518,17 @@ function defaultState(){
   return {currency:'$', activeTripId:t.id, trips:[t]};
 }
 
+/* cert now holds an image filename (cert_xxx.jpg); scrub any legacy text value (e.g. "GIA") */
+function migrateCert(s){
+  (s.trips||[]).forEach(t=>(t.vendors||[]).forEach(v=>(v.rows||[]).forEach(r=>{
+    if(r.cert && !/^cert_/.test(r.cert)) r.cert='';
+  })));
+  return s;
+}
 function load(){
   try{
     const s=JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if(s && s.trips){ if(!s.activeTripId) s.activeTripId=s.trips[0]?.id; return s; }
+    if(s && s.trips){ if(!s.activeTripId) s.activeTripId=s.trips[0]?.id; return migrateCert(s); }
   }catch(e){}
   // migrate v1 (single workbook, no trips)
   try{
@@ -666,7 +691,7 @@ function headerHTML(){
     </tr>
     <tr>
       <th>מספר</th>
-      ${COLS.map(c=>`<th class="${SALE[c.key]?'sales-col':''}${c.key==='stones'?' col-stones':''}">${c.label}</th>`).join('')}
+      ${COLS.map(c=>`<th class="${SALE[c.key]?'sales-col':''}${c.key==='stones'?' col-stones':''}${c.key==='cert'?' col-cert':''}">${c.label}</th>`).join('')}
       <th class="col-del"></th>
     </tr>
   </thead>`;
@@ -690,10 +715,9 @@ function buildRow(v,r,i){
       const inp=document.createElement('input'); inp.setAttribute('list','shapes');
       inp.value=r.shape||''; inp.placeholder='—';
       inp.oninput=()=>{ r.shape=inp.value; debouncedSave(); }; td.appendChild(inp);
-    }else if(c.type==='cert'){
-      const inp=document.createElement('input'); inp.setAttribute('list','certs');
-      inp.value=r.cert||''; inp.placeholder='—';
-      inp.oninput=()=>{ r.cert=inp.value; debouncedSave(); }; td.appendChild(inp);
+    }else if(c.type==='certimg'){
+      td.className=(td.className+' col-cert').trim();
+      td.appendChild(certCell(r,tr));
     }else{
       const inp=document.createElement('input'); inp.value=r[c.key]??'';
       const numKind=VALIDATED_NUM[c.key];          // 'num' (decimal) | 'int' | undefined
@@ -718,7 +742,7 @@ function buildRow(v,r,i){
 
   const tdDel=document.createElement('td'); tdDel.className='col-del';
   const del=document.createElement('button'); del.className='del-row'; del.title='מחיקת השורה הזו מהטבלה.'; del.textContent='🗑';
-  del.onclick=()=>{ if(v.rows.length===1){ v.rows[0]=blankRow(); } else { v.rows.splice(i,1); } save(); renderMain(); };
+  del.onclick=()=>{ if(r.cert) deleteCertImage(r.cert); if(v.rows.length===1){ v.rows[0]=blankRow(); } else { v.rows.splice(i,1); } save(); renderMain(); };
   tdDel.appendChild(del); tr.appendChild(tdDel);
   return tr;
 }
@@ -788,7 +812,7 @@ function buildSummary(trip){
       if(r.sold) tr.className='is-sold';
       tr.innerHTML=`<td class="col-num">${idx}</td><td>${escapeHtml(r.serial)}</td>
         <td>${r.weight?fmtNum(num(r.weight)):''}</td><td class="col-stones">${r.stones||''}</td><td>${escapeHtml(r.shape)}</td>
-        <td>${r.cost?fmtMoney(num(r.cost)):''}</td><td class="auto">${fmtMoney(c)}</td><td>${escapeHtml(r.cert)}</td><td class="s-notes">${escapeHtml(r.notes)}</td>
+        <td>${r.cost?fmtMoney(num(r.cost)):''}</td><td class="auto">${fmtMoney(c)}</td><td class="col-cert">${r.cert?`<img class="sum-cert-thumb" data-cert="${escapeHtml(r.cert)}" alt="תעודה">`:''}</td><td class="s-notes">${escapeHtml(r.notes)}</td>
         <td class="sales-col">${r.sale?fmtMoney(num(r.sale)):''}</td><td class="auto sales-col">${fmtMoney(s)}</td>
         <td class="sales-col">${r.sold?'✓':''}</td>`;
       tb.appendChild(tr);
@@ -807,6 +831,7 @@ function buildSummary(trip){
     wrap.appendChild(e); return wrap;
   }
   const sc=document.createElement('div'); sc.className='table-scroll'; sc.appendChild(table); wrap.appendChild(sc);
+  hydrateCertThumbs(table);
   const g=document.createElement('div'); g.className='totals'; g.style.marginTop='24px';
   g.innerHTML=`
     <div class="card no-print"><div class="k">סה"כ אבנים</div><div class="v">${fmtNum(gStones)}</div></div>
@@ -913,11 +938,11 @@ function flashInvalid(inp){ inp.classList.add('input-invalid'); setTimeout(()=>i
 /* ----- export current trip to CSV (Excel, UTF-8 BOM) ----- */
 function exportCSV(){
   const trip=activeTrip();
-  const headers=['ספק','מספר','סריה','משקל','מספר אבנים','צורה','עלות לקראט','סה"כ עלות','תעודה','הערות','מכירה לקראט','סה"כ מכירה','נמכר'];
+  const headers=['ספק','מספר','סריה','משקל','מספר אבנים','צורה','עלות לקראט','סה"כ עלות','הערות','מכירה לקראט','סה"כ מכירה','נמכר'];
   const lines=[['נסיעה:',tripLabel(trip)],[],headers];
   trip.vendors.forEach(v=>{
     v.rows.filter(hasData).forEach((r,i)=>{
-      lines.push([v.name,i+1,r.serial,r.weight,r.stones,r.shape,r.cost,rowCost(r),r.cert,r.notes,r.sale,rowSale(r),r.sold?'כן':'']);
+      lines.push([v.name,i+1,r.serial,r.weight,r.stones,r.shape,r.cost,rowCost(r),r.notes,r.sale,rowSale(r),r.sold?'כן':'']);
     });
   });
   const csv='﻿'+lines.map(row=>row.map(csvCell).join(',')).join('\r\n');
@@ -1048,12 +1073,12 @@ async function importXLSX(ev){
         const vals=Object.values(m).map(x=>x.trim());
         if(!seenHeader){ if(vals.includes('מספר')&&vals.includes('סריה')) seenHeader=true; continue; }
         const weight=get(m,'משקל'),stones=get(m,'מספר אבנים'),shape=get(m,'צורה'),
-          cost=get(m,'עלות לקראט'),cert=get(m,'תעודה'),notes=get(m,'הערות'),sale=get(m,'מכירה לקראט'),
+          cost=get(m,'עלות לקראט'),notes=get(m,'הערות'),sale=get(m,'מכירה לקראט'),
           serial=get(m,'סריה'),sold=get(m,'נמכר');
         const real=[weight,stones,cost,sale].some(v=>parseFloat(v)>0);   // a real entry has numeric data
         if(!real) continue;
         dataRows.push({serial,weight:weight&&parseFloat(weight)?weight:'',stones:stones&&parseFloat(stones)?stones:'',
-          shape,cost:cost&&parseFloat(cost)?cost:'',cert:cert==='0'?'':cert,notes:notes==='0'?'':notes,sale:sale&&parseFloat(sale)?sale:'',sold:isSold(sold)});
+          shape,cost:cost&&parseFloat(cost)?cost:'',cert:'',notes:notes==='0'?'':notes,sale:sale&&parseFloat(sale)?sale:'',sold:isSold(sold)});
       }
       const vname=VENDOR_HE[sh.name.trim().toLowerCase()]||sh.name.trim();
       vendors.push({id:rid('v'),name:vname,rows:dataRows.length?dataRows:[blankRow()]});
@@ -1081,9 +1106,6 @@ const dl=document.createElement('datalist'); dl.id='shapes';
 SHAPES.forEach(s=>{const o=document.createElement('option');o.value=s;dl.appendChild(o);});
 document.body.appendChild(dl);
 
-const certDl=document.createElement('datalist'); certDl.id='certs';
-['GIA'].forEach(s=>{const o=document.createElement('option');o.value=s;certDl.appendChild(o);});
-document.body.appendChild(certDl);
 
 /* ============================================================
    FILE SYNC — optional, no server.
@@ -1094,11 +1116,146 @@ document.body.appendChild(certDl);
 const SYNC_SUPPORTED = !!(window.showOpenFilePicker && window.indexedDB);
 let syncHandle=null, syncNeedsReconnect=false, syncWriteTimer=null, syncBusy=false;
 
-function idbDB(){ return new Promise((res,rej)=>{ const r=indexedDB.open('gem-sync',2);
+function idbDB(){ return new Promise((res,rej)=>{ const r=indexedDB.open('gem-sync',3);
   r.onupgradeneeded=()=>{ const db=r.result;
     if(!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
-    if(!db.objectStoreNames.contains('snaps')) db.createObjectStore('snaps',{keyPath:'day'}); };
+    if(!db.objectStoreNames.contains('snaps')) db.createObjectStore('snaps',{keyPath:'day'});
+    if(!db.objectStoreNames.contains('certs')) db.createObjectStore('certs'); };   // key: filename, value: image Blob
   r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function certImgPut(name,blob){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('certs','readwrite');
+  t.objectStore('certs').put(blob,name); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+async function certImgGet(name){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('certs','readonly');
+  const rq=t.objectStore('certs').get(name); rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); }); }
+async function certImgDel(name){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('certs','readwrite');
+  t.objectStore('certs').delete(name); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+
+/* ============================================================
+   CERTIFICATE IMAGES
+   The bytes never touch localStorage/state (which only holds the
+   filename). Two layers: IndexedDB = fast local cache + offline;
+   the connected Drive/OneDrive folder's certificates/ subfolder =
+   durable + syncs across devices via the cloud client.
+   ============================================================ */
+const CERT_MAXEDGE=1800, CERT_QUALITY=0.8;
+const _certURLs={};                       // filename -> objectURL, cached for this session
+
+async function compressImage(file){
+  const bmp=await createImageBitmap(file);
+  let w=bmp.width, h=bmp.height;
+  const scale=Math.min(1, CERT_MAXEDGE/Math.max(w,h));    // only shrink, never upscale
+  w=Math.max(1,Math.round(w*scale)); h=Math.max(1,Math.round(h*scale));
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  cv.getContext('2d').drawImage(bmp,0,0,w,h); if(bmp.close) bmp.close();
+  const blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',CERT_QUALITY));
+  return blob||file;
+}
+async function certFolderHandle(create){
+  if(!backupDir||backupNeedsReconnect) return null;
+  try{ return await backupDir.getDirectoryHandle('certificates',{create:!!create}); }catch(e){ return null; }
+}
+async function saveCertImage(file){
+  const blob=await compressImage(file).catch(()=>file);
+  const name='cert_'+rid('').slice(0,10)+'.jpg';
+  await certImgPut(name,blob);                            // local cache – always
+  const dir=await certFolderHandle(true);                 // + drive copy when a folder is connected
+  if(dir){ try{ const fh=await dir.getFileHandle(name,{create:true}); const wr=await fh.createWritable(); await wr.write(blob); await wr.close(); }catch(e){} }
+  return name;
+}
+async function certBlob(name){
+  if(!name) return null;
+  let b=await certImgGet(name).catch(()=>null);           // local first
+  if(b) return b;
+  const dir=await certFolderHandle(false);                // else pull from the drive folder (e.g. another device)
+  if(dir){ try{ const fh=await dir.getFileHandle(name); b=await fh.getFile(); if(b){ certImgPut(name,b).catch(()=>{}); return b; } }catch(e){} }
+  return null;
+}
+async function certURL(name){
+  if(!name) return null;
+  if(_certURLs[name]) return _certURLs[name];
+  const b=await certBlob(name); if(!b) return null;
+  return (_certURLs[name]=URL.createObjectURL(b));
+}
+async function deleteCertImage(name){
+  if(!name) return;
+  if(_certURLs[name]){ URL.revokeObjectURL(_certURLs[name]); delete _certURLs[name]; }
+  await certImgDel(name).catch(()=>{});
+  const dir=await certFolderHandle(false);
+  if(dir){ try{ await dir.removeEntry(name); }catch(e){} }
+}
+
+/* editable cell in the main table */
+function certCell(r,tr){
+  const box=document.createElement('div'); box.className='cert-cell';
+  const render=()=>{
+    box.innerHTML='';
+    if(r.cert){
+      const img=document.createElement('img'); img.className='cert-thumb'; img.alt='תעודה'; img.loading='lazy';
+      certURL(r.cert).then(u=>{ if(u){ img.src=u; } else { img.replaceWith(certMissing()); } });
+      img.onclick=()=>openCertLightbox(r,render);
+      box.appendChild(img);
+    }else{
+      const btn=document.createElement('button'); btn.type='button'; btn.className='cert-add'; btn.title='הוספת תמונת תעודה'; btn.textContent='➕';
+      const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.capture='environment'; inp.style.display='none';
+      btn.onclick=()=>inp.click();
+      inp.onchange=async()=>{ const f=inp.files&&inp.files[0]; if(!f) return; btn.textContent='…'; btn.disabled=true;
+        try{ r.cert=await saveCertImage(f); save(); render(); }
+        catch(e){ alert('לא ניתן לשמור את התמונה.'); btn.textContent='➕'; btn.disabled=false; } };
+      box.appendChild(btn); box.appendChild(inp);
+    }
+  };
+  render();
+  return box;
+}
+function certMissing(){ const s=document.createElement('span'); s.className='cert-missing'; s.title='התמונה לא נמצאה במכשיר הזה. חברו את תיקיית הגיבוי כדי לטעון אותה.'; s.textContent='🖼️?'; return s; }
+
+/* fill in <img data-cert="filename"> thumbnails (summary / print / mobile views) */
+function hydrateCertThumbs(root){
+  if(!root) return;
+  root.querySelectorAll('img[data-cert]').forEach(img=>{
+    const name=img.getAttribute('data-cert'); if(!name) return;
+    certURL(name).then(u=>{ if(u){ img.src=u; } else { img.replaceWith(certMissing()); } });
+    img.style.cursor='pointer'; img.onclick=()=>openCertView(name);
+  });
+}
+/* read-only viewer used from summary/print thumbnails */
+function openCertView(name){
+  certURL(name).then(u=>{
+    if(!u){ alert('התמונה לא נמצאה במכשיר הזה. חברו את תיקיית הגיבוי כדי לטעון אותה.'); return; }
+    let ov=$('certOverlay'); if(!ov){ ov=document.createElement('div'); ov.id='certOverlay'; ov.className='cert-overlay'; document.body.appendChild(ov); }
+    ov.innerHTML='<div class="cert-box"><img class="cert-full" alt="תעודה"><div class="cert-actions"><button class="btn btn-sm btn-outline" id="certClose">סגור</button></div></div>';
+    ov.querySelector('.cert-full').src=u; ov.style.display='flex';
+    const close=()=>{ ov.style.display='none'; }; ov.onclick=e=>{ if(e.target===ov) close(); }; $('certClose').onclick=close;
+  });
+}
+
+/* full-screen viewer with replace / remove */
+function openCertLightbox(r,onChange){
+  let ov=$('certOverlay');
+  if(!ov){ ov=document.createElement('div'); ov.id='certOverlay'; ov.className='cert-overlay'; document.body.appendChild(ov); }
+  ov.innerHTML=`<div class="cert-box">
+      <img class="cert-full" alt="תעודה">
+      <div class="cert-actions">
+        <button class="btn btn-sm btn-add" id="certReplace">📷 החלפה</button>
+        <button class="btn btn-sm btn-danger" id="certRemove">🗑 מחיקה</button>
+        <button class="btn btn-sm btn-outline" id="certClose">סגור</button>
+      </div>
+    </div>
+    <input type="file" id="certReplaceInput" accept="image/*" capture="environment" style="display:none">`;
+  ov.style.display='flex';
+  certURL(r.cert).then(u=>{ if(u) ov.querySelector('.cert-full').src=u; });
+  const close=()=>{ ov.style.display='none'; };
+  ov.onclick=e=>{ if(e.target===ov) close(); };
+  $('certClose').onclick=close;
+  const rep=$('certReplaceInput');
+  $('certReplace').onclick=()=>rep.click();
+  rep.onchange=async()=>{ const f=rep.files&&rep.files[0]; if(!f) return;
+    const old=r.cert;
+    try{ r.cert=await saveCertImage(f); if(old&&old!==r.cert) deleteCertImage(old); save(); onChange&&onChange(); close(); }
+    catch(e){ alert('לא ניתן לשמור את התמונה.'); } };
+  $('certRemove').onclick=()=>{ if(!confirm('למחוק את תמונת התעודה?')) return;
+    const old=r.cert; r.cert=''; if(old) deleteCertImage(old); save(); onChange&&onChange(); close(); };
+}
+
 async function idbSet(k,v){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readwrite');
   t.objectStore('kv').put(v,k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
 async function idbGet(k){ const db=await idbDB(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readonly');
@@ -1462,7 +1619,7 @@ function buildPreview(){
       if(r.weight) fields.push(['משקל', fmtNum(num(r.weight))+' ct']);
       if(r.stones && num(r.stones)>1) fields.push(['מספר אבנים', escapeHtml(r.stones)]);
       if(r.shape) fields.push(['צורה', escapeHtml(r.shape)]);
-      if(r.cert) fields.push(['תעודה', escapeHtml(r.cert)]);
+      if(r.cert) fields.push(['תעודה', `<img class="sum-cert-thumb" data-cert="${escapeHtml(r.cert)}" alt="תעודה">`]);
       fields.push(['עלות', fmtMoney(rc)]);
       if(r.sale) fields.push(['מכירה', fmtMoney(rs), 'sale']);
       if(r.notes) fields.push(['הערות', escapeHtml(r.notes), 'note']);
@@ -1510,6 +1667,7 @@ function buildPreview(){
       </div>
       ${vendorsHtml}
     </div>`;
+  hydrateCertThumbs($('previewView'));
 }
 function buildHistory(){
   const trips=[...state.trips].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
