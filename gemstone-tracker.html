@@ -419,7 +419,6 @@
       <div class="menu-title">פעולות</div>
       <button class="menu-item" onclick="window.print()" title="הדפסת הטבלה או שמירתה כקובץ PDF. בחלון ההדפסה בוחרים את היעד 'שמירה כ‑PDF'.">🖨️ הדפסה / PDF</button>
       <button class="menu-item" onclick="emailPDF()" title="שולח את הנסיעה הנוכחית במייל: קודם שומרים PDF דרך ההדפסה, ואז נפתח מייל חדש לצרף אליו את הקובץ.">📧 שלח במייל</button>
-      <button class="menu-item" onclick="exportCSV()" title="ייצוא הנתונים של הנסיעה הנוכחית לקובץ אקסל (CSV) שנפתח באקסל, כולל עברית. מתאים לצפייה – לא לטעינה חזרה לאפליקציה.">⬇️ ייצוא לאקסל</button>
       <button class="menu-item" onclick="backupJSON()" title="שמירת גיבוי מלא של כל הנסיעות והנתונים לקובץ אחד במחשב. כדאי לעשות מדי פעם, וגם כדי להעביר את הכול למחשב אחר.">💾 גיבוי הכל</button>
       <label class="menu-item" style="cursor:pointer" title="טעינת קובץ גיבוי שנשמר קודם. שימו לב: הפעולה דורסת את כל הנתונים הקיימים כעת באפליקציה.">↺ שחזור גיבוי
         <input type="file" accept=".json" onchange="restoreJSON(event)" style="display:none">
@@ -935,20 +934,6 @@ function showNumError(kind){
 }
 function flashInvalid(inp){ inp.classList.add('input-invalid'); setTimeout(()=>inp.classList.remove('input-invalid'),700); }
 
-/* ----- export current trip to CSV (Excel, UTF-8 BOM) ----- */
-function exportCSV(){
-  const trip=activeTrip();
-  const headers=['ספק','מספר','סריה','משקל','מספר אבנים','צורה','עלות לקראט','סה"כ עלות','הערות','מכירה לקראט','סה"כ מכירה','נמכר'];
-  const lines=[['נסיעה:',tripLabel(trip)],[],headers];
-  trip.vendors.forEach(v=>{
-    v.rows.filter(hasData).forEach((r,i)=>{
-      lines.push([v.name,i+1,r.serial,r.weight,r.stones,r.shape,r.cost,rowCost(r),r.notes,r.sale,rowSale(r),r.sold?'כן':'']);
-    });
-  });
-  const csv='﻿'+lines.map(row=>row.map(csvCell).join(',')).join('\r\n');
-  download(csv, safeName(trip.name)+'_'+today()+'.csv','text/csv;charset=utf-8;');
-}
-function csvCell(v){ v=(v==null?'':String(v)); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 
 /* Send the trip as a PDF by email. We open Gmail's web compose in a new tab
    (mailto needs a desktop mail client, which Gmail-in-the-browser users don't
@@ -1099,7 +1084,6 @@ function download(content,name,type){
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function today(){ return new Date().toISOString().slice(0,10); }
-function safeName(s){ return String(s||'trip').replace(/[\\/:*?"<>|]+/g,'_').trim()||'trip'; }
 function escapeHtml(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 const dl=document.createElement('datalist'); dl.id='shapes';
@@ -1750,7 +1734,7 @@ function buildGuide(){
   ${guideStep(1,'מה רואים על המסך',`
     <p>המסך בנוי מ‑3 חלקים:</p>
     <ul>
-      <li><b>מימין – התפריט</b> (הפס הלבן). שם כל הכפתורים: מדריך, הדפסה, ייצוא, גיבוי וסנכרון.</li>
+      <li><b>מימין – התפריט</b> (הפס הלבן). שם כל הכפתורים: מדריך, הדפסה, גיבוי וסנכרון.</li>
       <li><b>במרכז – הטבלה</b> שבה ממלאים את האבנים.</li>
       <li>למעלה – הכותרת, ולידה הסימן ✓ נשמר שמראה שהכול נשמר אוטומטית.</li>
     </ul>
@@ -1837,20 +1821,16 @@ function buildGuide(){
     <p><b>📧 שלח במייל</b> פותח מייל חדש מוכן (ב‑Gmail) ובמקביל חלון לשמירת PDF. הצעדים שמופיעים על המסך: שומרים את ה‑PDF, עוברים למייל שנפתח, מצרפים אליו את הקובץ, כותבים נמען – ושולחים.</p>
   `,null)}
 
-  ${guideStep(14,'ייצוא לאקסל',`
-    <p><b>⬇️ ייצוא לאקסל</b> יוצר קובץ של הנסיעה הנוכחית שנפתח באקסל (כולל עברית). מתאים לצפייה ולשליחה – לא לטעינה חזרה לאפליקציה.</p>
-  `,null)}
-
-  ${guideStep(15,'ייבוא מאקסל ישן',`
+  ${guideStep(14,'ייבוא מאקסל ישן',`
     <p>יש נסיעות ישנות בקובץ אקסל של התבנית הישנה? <b>📥 ייבוא מאקסל ישן</b> טוען קובץ <b>.xlsx</b> ומוסיף אותו כ<b>נסיעה חדשה</b> – בלי לדרוס שום דבר קיים.</p>
   `,null)}
 
-  ${guideStep(16,'גיבוי ושחזור ידני',`
+  ${guideStep(15,'גיבוי ושחזור ידני',`
     <p><b>💾 גיבוי הכל</b> שומר קובץ אחד עם <b>כל</b> הנסיעות והנתונים. <b>↺ שחזור גיבוי</b> טוען קובץ כזה בחזרה – ושים לב, זה <b>דורס</b> את כל מה שיש כרגע באפליקציה.</p>
     <p>כדאי ללחוץ גיבוי מדי פעם, ובמיוחד לפני שמוחקים נסיעה או ספק.</p>
   `,null,{tip:'לפני שאני מוחק משהו – קודם גיבוי. שנייה אחת, והראש שקט.'})}
 
-  ${guideStep(17,'גיבוי אוטומטי – שתי רשתות ביטחון',`
+  ${guideStep(16,'גיבוי אוטומטי – שתי רשתות ביטחון',`
     <p>בקטע <b>גיבוי אוטומטי</b> שבתפריט יש שתי הגנות שעובדות לבד:</p>
     <ul>
       <li><b>↩️ שחזר גרסה קודמת</b> – האפליקציה שומרת לבד <b>גרסה אחת ליום</b> (בתוך המחשב). אם נמחק משהו בטעות, פותחים את החלון הזה ובוחרים תאריך לחזור אליו. זו "כפתור אחורה" לימים שעברו.</li>
@@ -1858,11 +1838,11 @@ function buildGuide(){
     </ul>
   `,'backup',{tip:'חיברתי פעם אחת תיקייה ב‑Drive – ומאז יש לי גיבוי בענן בלי לחשוב על זה. רשת ביטחון אמיתית.'})}
 
-  ${guideStep(18,'סנכרון בין מחשבים (לא חובה)',`
+  ${guideStep(17,'סנכרון בין מחשבים (לא חובה)',`
     <p>רוצים שהנתונים יהיו גם במחשב אחר? בתפריט לוחצים <b>🔗 חבר קובץ נתונים</b> ובוחרים קובץ בתוך תיקיית <b>OneDrive / Google Drive</b>. מעכשיו הכול נשמר אליו אוטומטית ומסונכרן. זה לגמרי אופציונלי – גם בלי זה הכול נשמר במחשב כרגיל.</p>
   `,null)}
 
-  ${guideStep(19,'עדכונים – אין מה לעשות',`
+  ${guideStep(18,'עדכונים – אין מה לעשות',`
     <p>האפליקציה נפתחת מקישור באינטרנט, ולכן היא <b>מתעדכנת לבד</b> – כשמשתפרים בה דברים, הגרסה החדשה מופיעה אצלך מאליה, בלי להוריד או להתקין כלום. הנתונים שלך תמיד נשמרים.</p>
     <p>אפשר גם <b>להוסיף אותה לשולחן העבודה</b> כמו אפליקציה רגילה (ב‑Chrome/Edge יופיע סמל התקנה בשורת הכתובת), ואז היא עובדת גם בלי אינטרנט.</p>
   `,null)}
