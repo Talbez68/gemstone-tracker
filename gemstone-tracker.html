@@ -461,6 +461,7 @@ const COLS = [
   {key:'shape',  label:'צורה',          type:'shape'},
   {key:'cost',   label:'עלות לקראט',    type:'num'},
   {key:'totCost',label:'סה"כ עלות',     type:'auto'},
+  {key:'cert',   label:'תעודה',         type:'cert'},
   {key:'notes',  label:'הערות',         type:'text'},
   {key:'sale',   label:'מכירה לקראט',   type:'num'},
   {key:'totSale',label:'סה"כ מכירה',    type:'auto'},
@@ -472,7 +473,7 @@ let state = load();
 
 /* ---------- model ---------- */
 function rid(p){ return p+Math.random().toString(36).slice(2,9); }
-function blankRow(){ return {serial:'',weight:'',stones:'',shape:'',cost:'',notes:'',sale:'',sold:false}; }
+function blankRow(){ return {serial:'',weight:'',stones:'',shape:'',cost:'',cert:'',notes:'',sale:'',sold:false}; }
 function newVendor(name, code=''){ const r=blankRow(); if(code) r.serial=makeSerial(code,1); return {id:rid('v'), name, code, rows:[r]}; }
 /* ---- vendor codes & auto-serials (CODE-01, CODE-02 ...) ---- */
 function vendorCode(v){ return ((v&&v.code) || (state&&state.vendorCodes&&state.vendorCodes[v.name]) || '').toUpperCase(); }
@@ -659,7 +660,7 @@ function headerHTML(){
   <thead>
     <tr class="band">
       <th class="band-tools" colspan="2"></th>
-      <th class="band-taken" colspan="5">סחורות שנלקחו</th>
+      <th class="band-taken" colspan="6">סחורות שנלקחו</th>
       <th class="band-tools" colspan="1"></th>
       <th class="band-sales sales-col" colspan="3">מכירות</th>
     </tr>
@@ -689,6 +690,10 @@ function buildRow(v,r,i){
       const inp=document.createElement('input'); inp.setAttribute('list','shapes');
       inp.value=r.shape||''; inp.placeholder='—';
       inp.oninput=()=>{ r.shape=inp.value; debouncedSave(); }; td.appendChild(inp);
+    }else if(c.type==='cert'){
+      const inp=document.createElement('input'); inp.setAttribute('list','certs');
+      inp.value=r.cert||''; inp.placeholder='—';
+      inp.oninput=()=>{ r.cert=inp.value; debouncedSave(); }; td.appendChild(inp);
     }else{
       const inp=document.createElement('input'); inp.value=r[c.key]??'';
       const numKind=VALIDATED_NUM[c.key];          // 'num' (decimal) | 'int' | undefined
@@ -735,7 +740,7 @@ function footerHTML(v){
   tf.innerHTML=`<tr>
     <td class="lbl" colspan="2">סה"כ</td>
     <td>${fmtNum(wt)}</td><td class="col-stones">${fmtNum(stones)}</td><td></td><td></td>
-    <td class="auto">${fmtMoney(tc)}</td><td></td>
+    <td class="auto">${fmtMoney(tc)}</td><td></td><td></td>
     <td class="sales-col"></td><td class="auto sales-col">${fmtMoney(ts)}</td><td class="sales-col"></td>
     <td class="col-del"></td>
   </tr>`;
@@ -770,7 +775,7 @@ function buildSummary(trip){
   const table=document.createElement('table'); table.className='sum-table';
   table.innerHTML=`<thead><tr>
     <th>מספר</th><th>סריה</th><th>משקל</th><th class="col-stones">מספר אבנים</th><th>צורה</th>
-    <th>עלות לקראט</th><th>סה"כ עלות</th><th>הערות</th><th class="sales-col">מכירה לקראט</th><th class="sales-col">סה"כ מכירה</th><th class="sales-col">נמכר</th>
+    <th>עלות לקראט</th><th>סה"כ עלות</th><th>תעודה</th><th>הערות</th><th class="sales-col">מכירה לקראט</th><th class="sales-col">סה"כ מכירה</th><th class="sales-col">נמכר</th>
   </tr></thead>`;
   const tb=document.createElement('tbody');
   trip.vendors.forEach(v=>{
@@ -783,7 +788,7 @@ function buildSummary(trip){
       if(r.sold) tr.className='is-sold';
       tr.innerHTML=`<td class="col-num">${idx}</td><td>${escapeHtml(r.serial)}</td>
         <td>${r.weight?fmtNum(num(r.weight)):''}</td><td class="col-stones">${r.stones||''}</td><td>${escapeHtml(r.shape)}</td>
-        <td>${r.cost?fmtMoney(num(r.cost)):''}</td><td class="auto">${fmtMoney(c)}</td><td class="s-notes">${escapeHtml(r.notes)}</td>
+        <td>${r.cost?fmtMoney(num(r.cost)):''}</td><td class="auto">${fmtMoney(c)}</td><td>${escapeHtml(r.cert)}</td><td class="s-notes">${escapeHtml(r.notes)}</td>
         <td class="sales-col">${r.sale?fmtMoney(num(r.sale)):''}</td><td class="auto sales-col">${fmtMoney(s)}</td>
         <td class="sales-col">${r.sold?'✓':''}</td>`;
       tb.appendChild(tr);
@@ -793,7 +798,7 @@ function buildSummary(trip){
   const tf=document.createElement('tfoot');
   tf.innerHTML=`<tr><td class="lbl" colspan="2">סה"כ כל הספקים</td>
     <td>${fmtNum(gWt)}</td><td class="col-stones">${fmtNum(gStones)}</td><td></td><td></td>
-    <td class="auto">${fmtMoney(gCost)}</td><td></td><td class="sales-col"></td><td class="auto sales-col">${fmtMoney(gSale)}</td><td class="sales-col"></td></tr>`;
+    <td class="auto">${fmtMoney(gCost)}</td><td></td><td></td><td class="sales-col"></td><td class="auto sales-col">${fmtMoney(gSale)}</td><td class="sales-col"></td></tr>`;
   table.appendChild(tf);
 
   if(gRows===0){
@@ -813,7 +818,7 @@ function buildSummary(trip){
   return wrap;
 }
 /* a row counts as real data when it has gem info — an auto-serial alone doesn't */
-function hasData(r){ return r.weight||r.stones||r.shape||r.cost||r.sale||r.notes; }
+function hasData(r){ return r.weight||r.stones||r.shape||r.cost||r.sale||r.notes||r.cert; }
 
 /* ============================================================
    ACTIONS — trips
@@ -908,11 +913,11 @@ function flashInvalid(inp){ inp.classList.add('input-invalid'); setTimeout(()=>i
 /* ----- export current trip to CSV (Excel, UTF-8 BOM) ----- */
 function exportCSV(){
   const trip=activeTrip();
-  const headers=['ספק','מספר','סריה','משקל','מספר אבנים','צורה','עלות לקראט','סה"כ עלות','הערות','מכירה לקראט','סה"כ מכירה','נמכר'];
+  const headers=['ספק','מספר','סריה','משקל','מספר אבנים','צורה','עלות לקראט','סה"כ עלות','תעודה','הערות','מכירה לקראט','סה"כ מכירה','נמכר'];
   const lines=[['נסיעה:',tripLabel(trip)],[],headers];
   trip.vendors.forEach(v=>{
     v.rows.filter(hasData).forEach((r,i)=>{
-      lines.push([v.name,i+1,r.serial,r.weight,r.stones,r.shape,r.cost,rowCost(r),r.notes,r.sale,rowSale(r),r.sold?'כן':'']);
+      lines.push([v.name,i+1,r.serial,r.weight,r.stones,r.shape,r.cost,rowCost(r),r.cert,r.notes,r.sale,rowSale(r),r.sold?'כן':'']);
     });
   });
   const csv='﻿'+lines.map(row=>row.map(csvCell).join(',')).join('\r\n');
@@ -1043,12 +1048,12 @@ async function importXLSX(ev){
         const vals=Object.values(m).map(x=>x.trim());
         if(!seenHeader){ if(vals.includes('מספר')&&vals.includes('סריה')) seenHeader=true; continue; }
         const weight=get(m,'משקל'),stones=get(m,'מספר אבנים'),shape=get(m,'צורה'),
-          cost=get(m,'עלות לקראט'),notes=get(m,'הערות'),sale=get(m,'מכירה לקראט'),
+          cost=get(m,'עלות לקראט'),cert=get(m,'תעודה'),notes=get(m,'הערות'),sale=get(m,'מכירה לקראט'),
           serial=get(m,'סריה'),sold=get(m,'נמכר');
         const real=[weight,stones,cost,sale].some(v=>parseFloat(v)>0);   // a real entry has numeric data
         if(!real) continue;
         dataRows.push({serial,weight:weight&&parseFloat(weight)?weight:'',stones:stones&&parseFloat(stones)?stones:'',
-          shape,cost:cost&&parseFloat(cost)?cost:'',notes:notes==='0'?'':notes,sale:sale&&parseFloat(sale)?sale:'',sold:isSold(sold)});
+          shape,cost:cost&&parseFloat(cost)?cost:'',cert:cert==='0'?'':cert,notes:notes==='0'?'':notes,sale:sale&&parseFloat(sale)?sale:'',sold:isSold(sold)});
       }
       const vname=VENDOR_HE[sh.name.trim().toLowerCase()]||sh.name.trim();
       vendors.push({id:rid('v'),name:vname,rows:dataRows.length?dataRows:[blankRow()]});
@@ -1075,6 +1080,10 @@ function escapeHtml(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;',
 const dl=document.createElement('datalist'); dl.id='shapes';
 SHAPES.forEach(s=>{const o=document.createElement('option');o.value=s;dl.appendChild(o);});
 document.body.appendChild(dl);
+
+const certDl=document.createElement('datalist'); certDl.id='certs';
+['GIA'].forEach(s=>{const o=document.createElement('option');o.value=s;certDl.appendChild(o);});
+document.body.appendChild(certDl);
 
 /* ============================================================
    FILE SYNC — optional, no server.
@@ -1453,6 +1462,7 @@ function buildPreview(){
       if(r.weight) fields.push(['משקל', fmtNum(num(r.weight))+' ct']);
       if(r.stones && num(r.stones)>1) fields.push(['מספר אבנים', escapeHtml(r.stones)]);
       if(r.shape) fields.push(['צורה', escapeHtml(r.shape)]);
+      if(r.cert) fields.push(['תעודה', escapeHtml(r.cert)]);
       fields.push(['עלות', fmtMoney(rc)]);
       if(r.sale) fields.push(['מכירה', fmtMoney(rs), 'sale']);
       if(r.notes) fields.push(['הערות', escapeHtml(r.notes), 'note']);
