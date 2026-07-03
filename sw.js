@@ -2,7 +2,7 @@
    Strategy: network-first (always fetch the latest when online, so your
    pushes appear immediately), falling back to cache when offline.
    User data lives in localStorage/IndexedDB and is never touched here. */
-const CACHE = 'gemstone-cache-v2';
+const CACHE = 'gemstone-cache-v3';
 const CORE = ['./', 'index.html', 'gemstone-tracker.html', 'manifest.json'];
 
 self.addEventListener('install', e => {
