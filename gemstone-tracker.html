@@ -1540,6 +1540,14 @@ async function driveCertDelete(name){
 /* Put every photo where it belongs: upload the ones Drive never got, and move
    the ones sitting in the wrong folder (older versions dropped them all in the
    top-level folder, and renaming a trip renames its folder). */
+const DRIVE_TIDY_V=2;                 // bump to re-run the tidy-up on every device
+async function driveCertTidyOnce(){
+  if(!driveOn||driveNeedsAuth) return;
+  let done=null; try{ done=await idbGet('driveTidy'); }catch(e){}
+  if(done===DRIVE_TIDY_V) return;     // this device already sorted its folders
+  await driveCertBackfill();
+  idbSet('driveTidy',DRIVE_TIDY_V).catch(()=>{});
+}
 async function driveCertBackfill(){
   if(!driveOn||driveNeedsAuth) return;
   const seen=Object.create(null);
@@ -1619,7 +1627,7 @@ async function connectDrive(){
     await idbSet('drive',{fileId:driveFileId, link:driveLink});
     await drivePull(true);
     renderDriveUI('synced');
-    driveCertBackfill().catch(()=>{});
+    driveCertTidyOnce().catch(()=>{});
     alert('מחובר ל‑Google Drive ✓\n\nנוצרה ב"הדרייב שלי" תיקייה בשם "'+DRIVE_FOLDER+'", ובתוכה הקובץ '+DRIVE_FILENAME+' וגם תמונות התעודות.\nאפשר תמיד להגיע אליה מכפתור "📂 הצג ב‑Drive" שבתפריט.\n\nכדי לסנכרן גם את הטלפון: פותחים שם את אותו קישור ומתחברים לאותו חשבון Google.');
   }catch(e){
     driveOn=false; renderDriveUI();
@@ -1644,7 +1652,8 @@ function renderDriveUI(status){
     o.title='פתיחת הקובץ gemstones.json ב‑Google Drive, בחלון חדש.'; o.onclick=()=>window.open(driveLink,'_blank','noopener');
     el.appendChild(o);
     const r=document.createElement('button'); r.className='btn btn-ghost btn-sm'; r.textContent='רענן';
-    r.title='טעינת הנתונים העדכניים ביותר מ‑Drive.'; r.onclick=()=>drivePull(true).catch(()=>renderDriveUI('error'));
+    r.title='טעינת הנתונים העדכניים ביותר מ‑Drive, וסידור תמונות התעודות בתיקיות של הנסיעות.';
+    r.onclick=()=>drivePull(true).then(()=>driveCertBackfill()).catch(()=>renderDriveUI('error'));
     const d=document.createElement('button'); d.className='btn btn-ghost btn-sm'; d.textContent='נתק'; d.onclick=disconnectDrive;
     el.appendChild(r); el.appendChild(d);
   }else if(driveOn&&driveNeedsAuth){
@@ -1672,6 +1681,7 @@ async function initDrive(){
   catch(e){ driveToken=null; driveNeedsAuth=true; renderDriveUI(); return; }
   // a pull that fails is just a bad moment on the network – stay connected
   try{ await drivePull(true); renderDriveUI('synced'); }catch(e){ renderDriveUI('error'); }
+  driveCertTidyOnce().catch(()=>{});      // sort the photos into their folders, once per device
 }
 /* pick up the other device's edits when he comes back to the app, and flush ours when he leaves */
 document.addEventListener('visibilitychange',()=>{

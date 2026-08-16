@@ -544,6 +544,30 @@ test.describe('Google Drive sync', () => {
     expect(photo.parents).toEqual([folder]);
   });
 
+  test('a device that is already connected sorts its photos on the next load', async ({ page }) => {
+    const remote = remoteFile('2099-01-01T00:00:00.000Z', 'ספק');
+    remote.state.trips[0].name = 'נסיעת אוגוסט';
+    remote.state.trips[0].vendors[0].rows[0].cert = 'cert_old01.jpg';
+    await seed(page);
+    await stubDrive(page, remote, { 'cert_old01.jpg': 'PRETEND-JPEG-BYTES' });
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    // connect the way an older build did, without any tidy-up
+    await page.evaluate(async () => {
+      await driveAuth(true);
+      const f = await driveFindFile();
+      driveFileId = f.id; driveOn = true;
+      await idbSet('drive', { fileId: driveFileId });
+      await drivePull(true);
+    });
+    expect(await page.evaluate(() => driveFindByName('cert_old01.jpg', 'id,parents').then((f) => f.parents))).toEqual([]);
+
+    await open(page);                                   // just reopening the app must sort it out
+    await expect.poll(async () => certFolderId(page, 'נסיעת אוגוסט')).not.toBeNull();
+    const folder = await certFolderId(page, 'נסיעת אוגוסט');
+    await expect.poll(async () => (await driveFile(page, 'cert_old01.jpg')).parents).toEqual([folder]);
+  });
+
   test('photos already loose in Drive are moved into the trip folder on connect', async ({ page }) => {
     // what an older version left behind: the photo sits in the top-level folder
     const remote = remoteFile('2099-01-01T00:00:00.000Z', 'ספק');
