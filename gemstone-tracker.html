@@ -518,16 +518,20 @@ function defaultState(){
 }
 
 /* cert now holds an image filename (cert_xxx.jpg); scrub any legacy text value (e.g. "GIA") */
-function migrateCert(s){
+/* Excel keeps 2.03 as 2.0299999999999998 - strip that binary-float noise */
+function cleanNum(v){ const n=parseFloat(v); return isFinite(n)&&n?String(Number(n.toPrecision(12))):''; }
+function migrateRows(s){
   (s.trips||[]).forEach(t=>(t.vendors||[]).forEach(v=>(v.rows||[]).forEach(r=>{
     if(r.cert && !/^cert_/.test(r.cert)) r.cert='';
+    // only touch values that carry float noise, never something he typed himself
+    ['weight','stones','cost','sale'].forEach(k=>{ if(/\d{9,}/.test(r[k]||'')) r[k]=cleanNum(r[k]); });
   })));
   return s;
 }
 function load(){
   try{
     const s=JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if(s && s.trips){ if(!s.activeTripId) s.activeTripId=s.trips[0]?.id; return migrateCert(s); }
+    if(s && s.trips){ if(!s.activeTripId) s.activeTripId=s.trips[0]?.id; return migrateRows(s); }
   }catch(e){}
   // migrate v1 (single workbook, no trips)
   try{
@@ -1088,8 +1092,8 @@ async function importXLSX(ev){
           serial=get(m,'סריה'),sold=get(m,'נמכר');
         const real=[weight,stones,cost,sale].some(v=>parseFloat(v)>0);   // a real entry has numeric data
         if(!real) continue;
-        dataRows.push({serial,weight:weight&&parseFloat(weight)?weight:'',stones:stones&&parseFloat(stones)?stones:'',
-          shape,cost:cost&&parseFloat(cost)?cost:'',cert:'',notes:notes==='0'?'':notes,sale:sale&&parseFloat(sale)?sale:'',sold:isSold(sold)});
+        dataRows.push({serial,weight:cleanNum(weight),stones:cleanNum(stones),
+          shape,cost:cleanNum(cost),cert:'',notes:notes==='0'?'':notes,sale:cleanNum(sale),sold:isSold(sold)});
       }
       if(!dataRows.length) continue;                                   // empty tab -> no vendor tab
       const vname=VENDOR_HE[sh.name.trim().toLowerCase()]||sh.name.trim();
