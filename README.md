@@ -38,14 +38,16 @@ sign in. Do that once per device with the **same Google account** and everything
 syncs by itself, through a single `gemstones.json` in his own Drive.
 
 - Works on desktop *and* Android — unlike the older file-based sync below.
-- Uses the `drive.file` scope, so the app can only ever see the one file it
-  created. Nothing else in his Drive is visible to it.
+- Everything lands in one Drive folder, **מעקב אבני חן**: `gemstones.json` plus
+  the certificate photos, so **photos sync across devices too**. A photo taken on
+  the laptop is pulled from Drive the first time the phone shows that row, then
+  cached locally for offline use.
+- Uses the `drive.file` scope, so the app can only ever see what it created
+  itself. Nothing else in his Drive is visible to it.
 - Conflicts resolve last-write-wins, guarded by a timestamp: a device left open
   on a stale copy will pull the newer data instead of overwriting it.
 - Only works when the app is opened from the **web link**, not from a copy
   downloaded to disk — OAuth can't authorize a `file://` page.
-- Certificate photos are not synced through Drive yet; they stay on the device
-  that uploaded them (and in the backup folder, if one is connected).
 
 **3. The older desktop-only file sync.**
 **🔗 חבר קובץ נתונים** picks a file inside his OneDrive/Google Drive *folder* and

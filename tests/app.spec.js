@@ -98,38 +98,60 @@ function buildXlsx(sheets) {
 // Stubs the GIS token client and the Drive REST endpoints in-page, so the sync
 // logic is exercised for real without a Google login. `seedRemote` is the file
 // already sitting in Drive, or null for "no file yet".
-async function stubDrive(page, seedRemote) {
-  await page.addInitScript((remote) => {
+async function stubDrive(page, seedRemote, seedCerts) {
+  await page.addInitScript(([remote, certs]) => {
     window.google = { accounts: { oauth2: { initTokenClient: (cfg) => ({
       callback: cfg.callback,
       requestAccessToken() { const cb = this.callback; setTimeout(() => cb({ access_token: 'tok', expires_in: 3600 }), 0); },
     }) } } };
 
-    const D = window.__drive = { file: remote ? { id: 'file1', modifiedTime: 't0', body: JSON.stringify(remote) } : null, n: 1, uploads: 0 };
+    // files keyed by name, the way Drive is queried here
+    const D = window.__drive = { files: {}, n: 1, uploads: 0, deleted: [] };
     const stamp = () => 't' + D.n++;
+    if (remote) D.files['gemstones.json'] = { id: 'file1', modifiedTime: 't0', body: JSON.stringify(remote), webViewLink: 'https://drive.google.com/file/d/file1/view' };
+    Object.entries(certs || {}).forEach(([n, body], i) => { D.files[n] = { id: 'cert' + i, modifiedTime: 't0', body }; });
+    const byId = (id) => Object.values(D.files).find((f) => f.id === id);
+    const qName = (u) => { const m = decodeURIComponent(u).match(/name='([^']+)'/); return m && m[1]; };
+
     const realFetch = window.fetch.bind(window);
     const json = (o) => new Response(JSON.stringify(o), { status: 200, headers: { 'Content-Type': 'application/json' } });
     window.fetch = async (url, opts = {}) => {
       const u = String((url && url.url) || url);
       if (!u.startsWith('https://www.googleapis.com/')) return realFetch(url, opts);
-      if (/\/upload\/drive\/v3\/files\?/.test(u)) {          // create, multipart
-        const body = String(opts.body);
-        D.file = { id: 'file1', modifiedTime: stamp(), body: body.slice(body.lastIndexOf('\r\n\r\n') + 4, body.lastIndexOf('\r\n--')) };
+      const raw = async () => (opts.body instanceof Blob ? opts.body.text() : String(opts.body || ''));
+
+      if (/\/upload\/drive\/v3\/files\?/.test(u)) {                     // create (multipart)
+        const body = await raw();
+        const meta = JSON.parse(body.slice(body.indexOf('\r\n\r\n') + 4, body.indexOf('\r\n--', body.indexOf('\r\n\r\n'))));
+        D.files[meta.name] = { id: 'id' + D.n, modifiedTime: stamp(), parent: (meta.parents || [])[0],
+          body: body.slice(body.lastIndexOf('\r\n\r\n') + 4, body.lastIndexOf('\r\n--')) };
         D.uploads++;
-        return json({ id: D.file.id, modifiedTime: D.file.modifiedTime });
+        return json({ id: D.files[meta.name].id, modifiedTime: D.files[meta.name].modifiedTime, webViewLink: 'https://drive.google.com/file/d/' + D.files[meta.name].id + '/view' });
       }
-      if (/\/upload\/drive\/v3\/files\//.test(u)) {          // update, raw body
-        D.file.body = String(opts.body); D.file.modifiedTime = stamp(); D.uploads++;
-        return json({ id: D.file.id, modifiedTime: D.file.modifiedTime });
+      if (/\/upload\/drive\/v3\/files\//.test(u)) {                     // update (raw media)
+        const f = byId(u.match(/files\/([^?]+)/)[1]);
+        f.body = await raw(); f.modifiedTime = stamp(); D.uploads++;
+        return json({ id: f.id, modifiedTime: f.modifiedTime });
       }
-      if (/\/drive\/v3\/files\?/.test(u)) return json({ files: D.file ? [{ id: D.file.id, modifiedTime: D.file.modifiedTime, webViewLink: 'https://drive.google.com/file/d/file1/view' }] : [] });
-      if (/\/drive\/v3\/files\//.test(u)) {
-        if (u.includes('alt=media')) return new Response(D.file.body, { status: 200 });
-        return json({ modifiedTime: D.file.modifiedTime });
+      if (/\/drive\/v3\/files\?/.test(u)) {
+        if ((opts.method || 'GET') === 'POST') {                          // create a folder
+          const meta = JSON.parse(await raw());
+          D.files[meta.name] = { id: 'folder1', modifiedTime: stamp(), mimeType: meta.mimeType };
+          return json({ id: 'folder1' });
+        }
+        const name = qName(u), f = name && D.files[name];
+        return json({ files: f ? [{ id: f.id, modifiedTime: f.modifiedTime, webViewLink: f.webViewLink }] : [] });
+      }
+      const idm = u.match(/\/drive\/v3\/files\/([^?]+)/);
+      if (idm) {
+        const f = byId(idm[1]);
+        if ((opts.method || 'GET') === 'DELETE') { D.deleted.push(idm[1]); delete D.files[Object.keys(D.files).find((k) => D.files[k] === f)]; return json({}); }
+        if (u.includes('alt=media')) return new Response(f.body, { status: 200 });
+        return json({ modifiedTime: f.modifiedTime });
       }
       return json({});
     };
-  }, seedRemote || null);
+  }, [seedRemote || null, seedCerts || null]);
 }
 // A remote file body: the app's wrapper around a state carrying one named vendor.
 function remoteFile(savedAt, vendorName) {
@@ -141,7 +163,7 @@ function remoteFile(savedAt, vendorName) {
     }] },
   };
 }
-const driveBody = (page) => page.evaluate(() => JSON.parse(window.__drive.file.body));
+const driveBody = (page) => page.evaluate(() => JSON.parse(window.__drive.files['gemstones.json'].body));
 
 // Collect console errors + uncaught exceptions for every test; a broken app surfaces here.
 function trackErrors(page) {
@@ -380,15 +402,57 @@ test.describe('Google Drive sync', () => {
 
     // the phone saves something newer straight into Drive, behind this tab's back
     await page.evaluate(() => {
-      window.__drive.file.body = JSON.stringify({ app: 'gemstone-tracker', savedAt: '2099-01-01T00:00:00.000Z',
+      window.__drive.files['gemstones.json'].body = JSON.stringify({ app: 'gemstone-tracker', savedAt: '2099-01-01T00:00:00.000Z',
         state: { currency: '$', savedAt: '2099-01-01T00:00:00.000Z', activeTripId: 't1', trips: [{ id: 't1', name: 'From phone', date: '2026-07-03', activeId: 'v9',
           vendors: [{ id: 'v9', name: 'ספק מהטלפון', code: 'ZZ', rows: [{ serial: 'ZZ-01', weight: '1', stones: '1', shape: '', cost: '', cert: '', notes: '', sale: '', sold: false }] }] }] } });
-      window.__drive.file.modifiedTime = 'tPhone';
+      window.__drive.files['gemstones.json'].modifiedTime = 'tPhone';
     });
     // this tab now edits and pushes – it must back off and take the newer copy instead
     await page.evaluate(async () => { state.trips[0].vendors[0].name = 'עריכה מקומית'; save(); await drivePush(); });
     expect(await vendorNames(page)).toEqual(['ספק מהטלפון']);
     expect((await driveBody(page)).state.trips[0].vendors[0].name).toBe('ספק מהטלפון');
+  });
+
+  test('the data file and photos live in one folder, not loose in My Drive', async ({ page }) => {
+    await seed(page);
+    await stubDrive(page, null);
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    const drive = await page.evaluate(() => window.__drive.files);
+    expect(drive['מעקב אבני חן'].mimeType).toBe('application/vnd.google-apps.folder');
+    expect(drive['gemstones.json'].parent).toBe('folder1');
+  });
+
+  test('adding a certificate photo uploads it to Drive', async ({ page }) => {
+    await seed(page);
+    await stubDrive(page, null);
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    await page.locator('.cert-add').first().click();
+    await page.locator('.cert-cell input[type=file]').first()
+      .setInputFiles({ name: 'gia.png', mimeType: 'image/png', buffer: Buffer.from(PNG_B64, 'base64') });
+    await expect.poll(async () =>
+      page.evaluate(() => Object.entries(window.__drive.files).filter(([n, f]) => /^cert_/.test(n) && f.parent === 'folder1').length),
+    ).toBe(1);
+  });
+
+  test('a photo taken on the other device is fetched from Drive', async ({ page }) => {
+    // what his phone sees: the row references a photo it has never held locally
+    const remote = remoteFile('2099-01-01T00:00:00.000Z', 'ספק מהמחשב');
+    remote.state.trips[0].vendors[0].rows[0].cert = 'cert_abc123.jpg';
+    await seed(page);
+    await stubDrive(page, remote, { 'cert_abc123.jpg': 'PRETEND-JPEG-BYTES' });
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    const size = await page.evaluate(async () => (await certBlob('cert_abc123.jpg'))?.size || 0);
+    expect(size).toBeGreaterThan(0);
+    // and it is cached locally, so it works offline from now on
+    expect(await page.evaluate(async () => (await certImgGet('cert_abc123.jpg'))?.size || 0)).toBeGreaterThan(0);
+    // the thumbnail renders instead of the "missing" placeholder
+    await expect(page.locator('img.cert-thumb').first()).toBeVisible();
   });
 
   test('a local edit is pushed to Drive automatically', async ({ page }) => {

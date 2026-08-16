@@ -1185,6 +1185,7 @@ async function saveCertImage(file){
   await certImgPut(name,blob);                            // local cache – always
   const dir=await certFolderHandle(true);                 // + drive copy when a folder is connected
   if(dir){ try{ const fh=await dir.getFileHandle(name,{create:true}); const wr=await fh.createWritable(); await wr.write(blob); await wr.close(); }catch(e){} }
+  driveCertUpload(name,blob).catch(()=>{});               // + Google Drive, so his phone gets it too
   return name;
 }
 async function certBlob(name){
@@ -1193,6 +1194,8 @@ async function certBlob(name){
   if(b) return b;
   const dir=await certFolderHandle(false);                // else pull from the drive folder (e.g. another device)
   if(dir){ try{ const fh=await dir.getFileHandle(name); b=await fh.getFile(); if(b){ certImgPut(name,b).catch(()=>{}); return b; } }catch(e){} }
+  b=await driveCertDownload(name).catch(()=>null);        // else fetch it from Google Drive (the phone's route)
+  if(b){ certImgPut(name,b).catch(()=>{}); return b; }
   return null;
 }
 async function certURL(name){
@@ -1207,6 +1210,7 @@ async function deleteCertImage(name){
   await certImgDel(name).catch(()=>{});
   const dir=await certFolderHandle(false);
   if(dir){ try{ await dir.removeEntry(name); }catch(e){} }
+  driveCertDelete(name).catch(()=>{});
 }
 
 /* editable cell in the main table */
@@ -1484,9 +1488,10 @@ function renderSyncUI(status){
 const DRIVE_CLIENT_ID='733539090151-tas4ifrkqc5j266abfj41gtckarr09kq.apps.googleusercontent.com';
 const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
 const DRIVE_FILENAME='gemstones.json';
+const DRIVE_FOLDER='מעקב אבני חן';
 /* OAuth needs a real origin – the downloaded file:// copy can't sync */
 const DRIVE_SUPPORTED = location.protocol==='https:' || location.hostname==='localhost';
-let driveOn=false, driveFileId=null, driveLink='', driveModified=null, driveNeedsAuth=false,
+let driveOn=false, driveFileId=null, driveLink='', driveFolderId=null, driveModified=null, driveNeedsAuth=false,
     driveToken=null, driveTokenExp=0, driveClient=null, driveBusy=false, drivePushTimer=null;
 
 function loadGIS(){
@@ -1538,10 +1543,55 @@ async function driveFindFile(){
   const j=await r.json();
   return (j.files&&j.files[0])||null;
 }
+/* one folder holds the data file and every certificate photo */
+async function driveFolder(){
+  if(driveFolderId) return driveFolderId;
+  const q=encodeURIComponent("name='"+DRIVE_FOLDER+"' and mimeType='application/vnd.google-apps.folder' and trashed=false");
+  const j=await (await driveFetch('https://www.googleapis.com/drive/v3/files?spaces=drive&fields=files(id)&q='+q)).json();
+  if(j.files&&j.files[0]) return (driveFolderId=j.files[0].id);
+  const r=await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id',
+    {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:DRIVE_FOLDER, mimeType:'application/vnd.google-apps.folder'})});
+  return (driveFolderId=(await r.json()).id);
+}
+/* find one of our files by name; null when Drive has never seen it */
+async function driveFindByName(name){
+  const q=encodeURIComponent("name='"+name+"' and trashed=false");
+  const j=await (await driveFetch('https://www.googleapis.com/drive/v3/files?spaces=drive&fields=files(id)&q='+q)).json();
+  return (j.files&&j.files[0])||null;
+}
+/* ---- certificate photos ride along in the same folder ---- */
+async function driveCertUpload(name,blob){
+  if(!driveOn||driveNeedsAuth||!blob) return;
+  if(await driveFindByName(name)) return;                       // already up there
+  const parent=await driveFolder(), b='gemCert'+Math.random().toString(36).slice(2);
+  const head='--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'
+    +JSON.stringify({name, parents:[parent]})+'\r\n--'+b+'\r\nContent-Type: '+(blob.type||'image/jpeg')+'\r\n\r\n';
+  await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {method:'POST', headers:{'Content-Type':'multipart/related; boundary='+b}, body:new Blob([head,blob,'\r\n--'+b+'--'])});
+}
+async function driveCertDownload(name){
+  if(!driveOn||driveNeedsAuth) return null;
+  const f=await driveFindByName(name); if(!f) return null;
+  return (await driveFetch('https://www.googleapis.com/drive/v3/files/'+f.id+'?alt=media')).blob();
+}
+async function driveCertDelete(name){
+  if(!driveOn||driveNeedsAuth) return;
+  const f=await driveFindByName(name); if(!f) return;
+  await driveFetch('https://www.googleapis.com/drive/v3/files/'+f.id,{method:'DELETE'});
+}
+/* photos taken before he connected are still only local – push them up once */
+async function driveCertBackfill(){
+  if(!driveOn||driveNeedsAuth) return;
+  const names=[];
+  (state.trips||[]).forEach(t=>(t.vendors||[]).forEach(v=>(v.rows||[]).forEach(r=>{ if(r.cert&&names.indexOf(r.cert)<0) names.push(r.cert); })));
+  for(const n of names){
+    try{ const b=await certImgGet(n); if(b) await driveCertUpload(n,b); }catch(e){}
+  }
+}
 async function driveCreateFile(){
-  const b='gemBoundary'+Math.random().toString(36).slice(2);
+  const b='gemBoundary'+Math.random().toString(36).slice(2), parent=await driveFolder();
   const body='--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'
-    +JSON.stringify({name:DRIVE_FILENAME, mimeType:'application/json'})
+    +JSON.stringify({name:DRIVE_FILENAME, mimeType:'application/json', parents:[parent]})
     +'\r\n--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+drivePayload()+'\r\n--'+b+'--';
   const r=await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime,webViewLink',
     {method:'POST', headers:{'Content-Type':'multipart/related; boundary='+b}, body});
@@ -1602,7 +1652,8 @@ async function connectDrive(){
     await idbSet('drive',{fileId:driveFileId, link:driveLink});
     await drivePull(true);
     renderDriveUI('synced');
-    alert('מחובר ל‑Google Drive ✓\n\nהנתונים נשמרים לקובץ '+DRIVE_FILENAME+' שנמצא ב"הדרייב שלי" (My Drive), ישירות בשורש – בלי תיקייה.\nאפשר תמיד להגיע אליו מכפתור "📂 הצג ב‑Drive" שבתפריט.\n\nכדי לסנכרן גם את הטלפון: פותחים שם את אותו קישור ומתחברים לאותו חשבון Google.');
+    driveCertBackfill().catch(()=>{});
+    alert('מחובר ל‑Google Drive ✓\n\nנוצרה ב"הדרייב שלי" תיקייה בשם "'+DRIVE_FOLDER+'", ובתוכה הקובץ '+DRIVE_FILENAME+' וגם תמונות התעודות.\nאפשר תמיד להגיע אליה מכפתור "📂 הצג ב‑Drive" שבתפריט.\n\nכדי לסנכרן גם את הטלפון: פותחים שם את אותו קישור ומתחברים לאותו חשבון Google.');
   }catch(e){
     driveOn=false; renderDriveUI();
     alert('לא הצלחנו להתחבר ל‑Google Drive.\n('+((e&&e.message)||e)+')');
@@ -1610,7 +1661,7 @@ async function connectDrive(){
 }
 async function disconnectDrive(){
   if(!confirm('לנתק את הסנכרון עם Google Drive? הנתונים יישארו במכשיר וגם בקובץ שב‑Drive.')) return;
-  driveOn=false; driveFileId=null; driveLink=''; driveModified=null; driveToken=null; driveNeedsAuth=false;
+  driveOn=false; driveFileId=null; driveLink=''; driveFolderId=null; driveModified=null; driveToken=null; driveNeedsAuth=false;
   await idbDel('drive'); renderDriveUI();
 }
 function renderDriveUI(status){
@@ -2069,8 +2120,9 @@ function buildGuide(){
 
   ${guideStep(17,'סנכרון בין המחשב לטלפון (לא חובה)',`
     <p>רוצים שאותם נתונים יהיו גם במחשב וגם בטלפון? בתפריט, בקטע <b>סנכרון בענן</b>, לוחצים <b>☁️ סנכרן עם Google Drive</b> ומתחברים לחשבון Google. עושים את זה <b>פעם אחת בכל מכשיר</b>, עם <b>אותו חשבון</b> – ומאז הכול מסתנכרן לבד.</p>
-    <p>הנתונים נשמרים לקובץ אחד בשם <b>gemstones.json</b> ב‑Drive הפרטי שלך. הוא נוצר ב<b>"הדרייב שלי" (My Drive)</b>, ישירות בשורש – בלי תיקייה. לא צריך לחפש אותו: אחרי החיבור מופיע בתפריט כפתור <b>📂 הצג ב‑Drive</b> שפותח אותו ישירות.</p>
-    <p>אפשר להזיז אותו לתיקייה שנוחה לך – הסנכרון ימשיך לעבוד. האפליקציה רואה רק את הקובץ הזה ושום דבר אחר ב‑Drive.</p>
+    <p>ב‑Drive שלך נוצרת תיקייה אחת בשם <b>מעקב אבני חן</b>. בתוכה נמצא הקובץ <b>gemstones.json</b> עם כל הנתונים, וגם <b>תמונות התעודות</b> – כך שגם הן עוברות בין המכשירים. לא צריך לחפש כלום: אחרי החיבור מופיע בתפריט כפתור <b>📂 הצג ב‑Drive</b> שפותח את הקובץ ישירות.</p>
+    <p>האפליקציה רואה <b>רק</b> את מה שהיא עצמה יצרה – שום דבר אחר ב‑Drive שלך לא נגיש לה.</p>
+    <p>תמונת תעודה שצולמה במחשב מופיעה בטלפון כשנכנסים לשורה שלה (היא נמשכת מ‑Drive בפעם הראשונה, ואז נשמרת גם במכשיר).</p>
     <p>אם ערכתם בשני מכשירים במקביל – נשמרת <b>הגרסה שנשמרה אחרונה</b>, והאפליקציה לא תדרוס נתונים חדשים יותר בישנים.</p>
     <p><b>שימו לב:</b> הסנכרון עובד רק כשפותחים את האפליקציה <b>מהקישור באינטרנט</b> (לא מקובץ שהורד למחשב).</p>
     <p>יש גם דרך ותיקה יותר למחשבים בלבד – <b>🔗 חבר קובץ נתונים</b> שומר לקובץ בתיקיית OneDrive/Drive במחשב. בטלפון היא לא עובדת, ולכן עדיף Google Drive.</p>
