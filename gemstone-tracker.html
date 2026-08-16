@@ -252,10 +252,10 @@
   .menu-item.active{background:var(--accent); color:#fff; border-color:var(--accent)}
   .menu-item.guide{background:#fff7e6; border-color:var(--gold); color:#8a6a16}
   .menu-item.guide.active{background:var(--gold); color:#fff}
-  #sideMenu #syncUI, #sideMenu #backupUI{display:flex; flex-direction:column; align-items:stretch; gap:8px}
-  #sideMenu #syncUI .sync-chip, #sideMenu #backupUI .sync-chip{justify-content:center; background:var(--auto); color:var(--accent-d); border:1px solid var(--line)}
-  #sideMenu #syncUI .btn, #sideMenu #backupUI .btn{justify-content:center; width:100%; background:var(--soft); color:var(--accent-d); border:1px solid var(--line); font-size:15px}
-  #sideMenu #syncUI .btn:hover, #sideMenu #backupUI .btn:hover{border-color:var(--accent)}
+  #sideMenu #driveUI, #sideMenu #syncUI, #sideMenu #backupUI{display:flex; flex-direction:column; align-items:stretch; gap:8px}
+  #sideMenu #driveUI .sync-chip, #sideMenu #syncUI .sync-chip, #sideMenu #backupUI .sync-chip{justify-content:center; background:var(--auto); color:var(--accent-d); border:1px solid var(--line)}
+  #sideMenu #driveUI .btn, #sideMenu #syncUI .btn, #sideMenu #backupUI .btn{justify-content:center; width:100%; background:var(--soft); color:var(--accent-d); border:1px solid var(--line); font-size:15px}
+  #sideMenu #driveUI .btn:hover, #sideMenu #syncUI .btn:hover, #sideMenu #backupUI .btn:hover{border-color:var(--accent)}
   /* restore-a-version overlay */
   .rst-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:80; align-items:center; justify-content:center; padding:18px}
   .rst-box{background:#fff; border-radius:16px; padding:22px 24px; max-width:520px; width:100%; max-height:84vh; overflow:auto; box-shadow:0 12px 40px rgba(0,0,0,.3)}
@@ -434,6 +434,7 @@
     </div>
     <div class="menu-section">
       <div class="menu-title">סנכרון בענן</div>
+      <span id="driveUI"></span>
       <span id="syncUI"></span>
     </div>
   </aside>
@@ -546,10 +547,12 @@ function load(){
 }
 let saveTimer=null;
 function save(){
+  state.savedAt=new Date().toISOString();      // whose copy is newer, for cloud sync
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   const el=$('saved'); el.classList.add('show');
   clearTimeout(saveTimer); saveTimer=setTimeout(()=>el.classList.remove('show'),1200);
   scheduleSyncWrite();      // also mirror to the linked cloud file, if any
+  scheduleDrivePush();      // ...and to Google Drive, if connected
   scheduleSnapshot();       // rolling daily snapshots (+ off-device backup folder)
 }
 
@@ -1468,7 +1471,187 @@ function renderSyncUI(status){
   }
 }
 
+/* ============================================================
+   GOOGLE DRIVE SYNC — the one that also works on his phone.
+   The File System Access API above is desktop-only, and the Drive
+   Android app keeps no local folder, so a phone can never join that
+   scheme. This talks to the Drive REST API instead: a single
+   gemstones.json in his own Drive, same file on every device.
+   Scope is drive.file — we can only ever see the file we created.
+   Conflicts: last write wins, guarded by savedAt, so a device left
+   open on a stale copy can't overwrite newer data.
+   ============================================================ */
+const DRIVE_CLIENT_ID='733539090151-tas4ifrkqc5j266abfj41gtckarr09kq.apps.googleusercontent.com';
+const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
+const DRIVE_FILENAME='gemstones.json';
+/* OAuth needs a real origin – the downloaded file:// copy can't sync */
+const DRIVE_SUPPORTED = location.protocol==='https:' || location.hostname==='localhost';
+let driveOn=false, driveFileId=null, driveModified=null, driveNeedsAuth=false,
+    driveToken=null, driveTokenExp=0, driveClient=null, driveBusy=false, drivePushTimer=null;
+
+function loadGIS(){
+  if(window.google&&google.accounts&&google.accounts.oauth2) return Promise.resolve();
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://accounts.google.com/gsi/client'; s.async=true;
+    s.onload=()=>(window.google&&google.accounts&&google.accounts.oauth2)?res():rej(new Error('gis-missing'));
+    s.onerror=()=>rej(new Error('gis-offline'));
+    document.head.appendChild(s);
+  });
+}
+/* interactive=true shows the Google account/consent screen; otherwise renew in silence */
+async function driveAuth(interactive){
+  await loadGIS();
+  if(!driveClient) driveClient=google.accounts.oauth2.initTokenClient(
+    {client_id:DRIVE_CLIENT_ID, scope:DRIVE_SCOPE, callback:()=>{}});
+  return new Promise((res,rej)=>{
+    driveClient.callback=r=>{
+      if(r&&r.access_token){
+        driveToken=r.access_token; driveTokenExp=Date.now()+((r.expires_in||3600)-60)*1000;
+        driveNeedsAuth=false; res(r.access_token);
+      }else rej(new Error((r&&r.error)||'auth-failed'));
+    };
+    driveClient.error_callback=e=>rej(new Error((e&&e.type)||'auth-failed'));
+    driveClient.requestAccessToken({prompt: interactive?'consent':''});
+  });
+}
+async function driveFetch(url,opts,retry){
+  if(!driveToken||Date.now()>driveTokenExp) await driveAuth(false);
+  const o=Object.assign({},opts); o.headers=Object.assign({Authorization:'Bearer '+driveToken},(opts&&opts.headers)||{});
+  const r=await fetch(url,o);
+  if(r.status===401&&!retry){ driveToken=null; return driveFetch(url,opts,true); }
+  if(!r.ok) throw new Error('drive-'+r.status);
+  return r;
+}
+/* the file body: the state plus who wrote it and when */
+function drivePayload(){ return JSON.stringify({app:'gemstone-tracker', savedAt:state.savedAt||new Date().toISOString(), state}, null, 2); }
+function driveUnwrap(txt){
+  const j=JSON.parse(txt);
+  const s=j&&j.state?j.state:j;                       // also reads a plain state file from the old sync
+  if(!s||!s.trips) return null;
+  if(!s.savedAt) s.savedAt=(j&&j.savedAt)||'';
+  return s;
+}
+async function driveFindFile(){
+  const q=encodeURIComponent("name='"+DRIVE_FILENAME+"' and trashed=false");
+  const r=await driveFetch('https://www.googleapis.com/drive/v3/files?spaces=drive&orderBy=modifiedTime desc&fields=files(id,modifiedTime)&q='+q);
+  const j=await r.json();
+  return (j.files&&j.files[0])||null;
+}
+async function driveCreateFile(){
+  const b='gemBoundary'+Math.random().toString(36).slice(2);
+  const body='--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'
+    +JSON.stringify({name:DRIVE_FILENAME, mimeType:'application/json'})
+    +'\r\n--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+drivePayload()+'\r\n--'+b+'--';
+  const r=await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime',
+    {method:'POST', headers:{'Content-Type':'multipart/related; boundary='+b}, body});
+  return r.json();
+}
+/* adopt the remote copy into the app */
+function driveAdopt(s){
+  state=migrateRows(s);
+  if(!state.activeTripId) state.activeTripId=state.trips[0]&&state.trips[0].id;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  render();
+}
+async function drivePull(force){
+  if(!driveOn||!driveFileId) return;
+  const meta=await (await driveFetch('https://www.googleapis.com/drive/v3/files/'+driveFileId+'?fields=modifiedTime')).json();
+  if(!force && meta.modifiedTime===driveModified) return;              // nothing new on the other device
+  const txt=await (await driveFetch('https://www.googleapis.com/drive/v3/files/'+driveFileId+'?alt=media')).text();
+  driveModified=meta.modifiedTime;
+  const remote=txt.trim()?driveUnwrap(txt):null;
+  if(!remote){ await drivePush(true); return; }                        // empty/foreign file: seed it
+  if(!state.savedAt || (remote.savedAt||'')>state.savedAt){ driveAdopt(remote); renderDriveUI('synced'); }
+  else if((remote.savedAt||'')<state.savedAt) await drivePush(true);   // ours is newer – put it back
+}
+function scheduleDrivePush(){
+  if(!driveOn||driveNeedsAuth) return;
+  clearTimeout(drivePushTimer); drivePushTimer=setTimeout(()=>drivePush().catch(()=>renderDriveUI('error')),1500);
+}
+async function drivePush(skipGuard){
+  if(!driveOn||!driveFileId||driveBusy) return; driveBusy=true;
+  try{
+    if(!skipGuard&&driveModified){
+      const meta=await (await driveFetch('https://www.googleapis.com/drive/v3/files/'+driveFileId+'?fields=modifiedTime')).json();
+      if(meta.modifiedTime!==driveModified){                           // another device wrote behind our back
+        const txt=await (await driveFetch('https://www.googleapis.com/drive/v3/files/'+driveFileId+'?alt=media')).text();
+        const remote=txt.trim()?driveUnwrap(txt):null;
+        driveModified=meta.modifiedTime;
+        if(remote && (remote.savedAt||'')>(state.savedAt||'')){        // theirs is newer – never clobber it
+          driveAdopt(remote); renderDriveUI('synced');
+          alert('נטענו נתונים עדכניים יותר ממכשיר אחר ☁️');
+          return;
+        }
+      }
+    }
+    const r=await driveFetch('https://www.googleapis.com/upload/drive/v3/files/'+driveFileId+'?uploadType=media&fields=id,modifiedTime',
+      {method:'PATCH', headers:{'Content-Type':'application/json; charset=UTF-8'}, body:drivePayload()});
+    driveModified=(await r.json()).modifiedTime;
+    renderDriveUI('synced');
+  }finally{ driveBusy=false; }
+}
+async function connectDrive(){
+  if(!DRIVE_SUPPORTED){ alert('כדי לסנכרן צריך לפתוח את האפליקציה מהקישור באינטרנט (לא מקובץ שהורד למחשב).'); return; }
+  try{
+    await driveAuth(true);
+    let f=await driveFindFile();
+    if(!f) f=await driveCreateFile();
+    driveFileId=f.id; driveModified=null; driveOn=true;
+    await idbSet('drive',{fileId:driveFileId});
+    await drivePull(true);
+    renderDriveUI('synced');
+    alert('מחובר ל‑Google Drive ✓\nמעכשיו הנתונים מסתנכרנים בין המחשב לטלפון – צריך רק להתחבר גם שם עם אותו חשבון.');
+  }catch(e){
+    driveOn=false; renderDriveUI();
+    alert('לא הצלחנו להתחבר ל‑Google Drive.\n('+((e&&e.message)||e)+')');
+  }
+}
+async function disconnectDrive(){
+  if(!confirm('לנתק את הסנכרון עם Google Drive? הנתונים יישארו במכשיר וגם בקובץ שב‑Drive.')) return;
+  driveOn=false; driveFileId=null; driveModified=null; driveToken=null; driveNeedsAuth=false;
+  await idbDel('drive'); renderDriveUI();
+}
+function renderDriveUI(status){
+  const el=$('driveUI'); if(!el) return; el.innerHTML='';
+  if(!DRIVE_SUPPORTED){
+    el.innerHTML='<span class="sync-chip" title="הסנכרון עובד רק כשפותחים את האפליקציה מהקישור באינטרנט">☁️ פתחו מהקישור כדי לסנכרן</span>';
+    return;
+  }
+  if(driveOn&&!driveNeedsAuth){
+    el.innerHTML=`<span class="sync-chip" title="הנתונים נשמרים אוטומטית לקובץ ${DRIVE_FILENAME} ב‑Google Drive שלך, ומסתנכרנים לכל מכשיר שמחובר לאותו חשבון.">${status==='error'?'⚠️':'☁️'} מסונכרן: <b>Google Drive</b></span>`;
+    const r=document.createElement('button'); r.className='btn btn-ghost btn-sm'; r.textContent='רענן';
+    r.title='טעינת הנתונים העדכניים ביותר מ‑Drive.'; r.onclick=()=>drivePull(true).catch(()=>renderDriveUI('error'));
+    const d=document.createElement('button'); d.className='btn btn-ghost btn-sm'; d.textContent='נתק'; d.onclick=disconnectDrive;
+    el.appendChild(r); el.appendChild(d);
+  }else if(driveOn&&driveNeedsAuth){
+    const b=document.createElement('button'); b.className='btn btn-amber'; b.textContent='☁️ התחבר מחדש ל‑Google Drive';
+    b.title='ההרשאה פגה. התחברות מחדש תטען את הנתונים העדכניים.'; b.onclick=connectDrive;
+    el.appendChild(b);
+  }else{
+    const b=document.createElement('button'); b.className='btn btn-ghost'; b.textContent='☁️ סנכרן עם Google Drive';
+    b.title='חיבור חד‑פעמי לחשבון Google. הנתונים יישמרו לקובץ אחד ב‑Drive שלך ויסתנכרנו בין המחשב לטלפון.';
+    b.onclick=connectDrive; el.appendChild(b);
+  }
+}
+async function initDrive(){
+  renderDriveUI();
+  if(!DRIVE_SUPPORTED) return;
+  let saved=null; try{ saved=await idbGet('drive'); }catch(e){}
+  if(!saved||!saved.fileId) return;
+  driveFileId=saved.fileId; driveOn=true; renderDriveUI('synced');
+  try{ await driveAuth(false); await drivePull(true); renderDriveUI('synced'); }   // silent renewal
+  catch(e){ driveNeedsAuth=true; renderDriveUI(); }
+}
+/* pick up the other device's edits when he comes back to the app, and flush ours when he leaves */
+document.addEventListener('visibilitychange',()=>{
+  if(!driveOn||driveNeedsAuth) return;
+  if(document.visibilityState==='visible') drivePull().catch(()=>{});
+  else { clearTimeout(drivePushTimer); drivePush().catch(()=>{}); }
+});
+
 async function initSync(){
+  initDrive();
   if(!SYNC_SUPPORTED){ renderSyncUI(); return; }
   try{
     syncHandle=await idbGet('syncHandle');
@@ -1879,8 +2062,12 @@ function buildGuide(){
     </ul>
   `,'backup',{tip:'חיברתי פעם אחת תיקייה ב‑Drive – ומאז יש לי גיבוי בענן בלי לחשוב על זה. רשת ביטחון אמיתית.'})}
 
-  ${guideStep(17,'סנכרון בין מחשבים (לא חובה)',`
-    <p>רוצים שהנתונים יהיו גם במחשב אחר? בתפריט לוחצים <b>🔗 חבר קובץ נתונים</b> ובוחרים קובץ בתוך תיקיית <b>OneDrive / Google Drive</b>. מעכשיו הכול נשמר אליו אוטומטית ומסונכרן. זה לגמרי אופציונלי – גם בלי זה הכול נשמר במחשב כרגיל.</p>
+  ${guideStep(17,'סנכרון בין המחשב לטלפון (לא חובה)',`
+    <p>רוצים שאותם נתונים יהיו גם במחשב וגם בטלפון? בתפריט, בקטע <b>סנכרון בענן</b>, לוחצים <b>☁️ סנכרן עם Google Drive</b> ומתחברים לחשבון Google. עושים את זה <b>פעם אחת בכל מכשיר</b>, עם <b>אותו חשבון</b> – ומאז הכול מסתנכרן לבד.</p>
+    <p>הנתונים נשמרים לקובץ אחד בשם <b>gemstones.json</b> ב‑Drive הפרטי שלך. האפליקציה רואה רק את הקובץ הזה ושום דבר אחר ב‑Drive.</p>
+    <p>אם ערכתם בשני מכשירים במקביל – נשמרת <b>הגרסה שנשמרה אחרונה</b>, והאפליקציה לא תדרוס נתונים חדשים יותר בישנים.</p>
+    <p><b>שימו לב:</b> הסנכרון עובד רק כשפותחים את האפליקציה <b>מהקישור באינטרנט</b> (לא מקובץ שהורד למחשב).</p>
+    <p>יש גם דרך ותיקה יותר למחשבים בלבד – <b>🔗 חבר קובץ נתונים</b> שומר לקובץ בתיקיית OneDrive/Drive במחשב. בטלפון היא לא עובדת, ולכן עדיף Google Drive.</p>
   `,null)}
 
   ${guideStep(18,'עדכונים – אין מה לעשות',`

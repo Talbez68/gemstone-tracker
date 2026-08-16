@@ -32,16 +32,29 @@ Two pieces, both free and serverless:
 Install **Chrome Remote Desktop** (https://remotedesktop.google.com) on his PC.
 You can then view or control his screen to fix things or show him how.
 
-**2. Access his data without hosting anything.**
-In the app, click **🔗 חבר קובץ נתונים** and choose/create a file (e.g.
-`gemstones.json`) **inside his OneDrive or Google Drive folder**. From then on the
-app auto-saves into that file, and his existing cloud client syncs it. If that
-folder is shared with you, you open the **same file** in your own copy of the app
-(**📂 פתח קובץ קיים**), make changes, and they sync back to him.
-The browser's local auto-save remains as a safety net regardless.
+**2. Sync his laptop and his Android phone — ☁️ Google Drive.**
+In the app's menu, under **סנכרון בענן**, click **☁️ סנכרן עם Google Drive** and
+sign in. Do that once per device with the **same Google account** and everything
+syncs by itself, through a single `gemstones.json` in his own Drive.
 
-> File-sync needs Chrome or Edge on desktop. If unsupported, use 💾 Backup → send
-> the file → ↺ Restore on the other side instead.
+- Works on desktop *and* Android — unlike the older file-based sync below.
+- Uses the `drive.file` scope, so the app can only ever see the one file it
+  created. Nothing else in his Drive is visible to it.
+- Conflicts resolve last-write-wins, guarded by a timestamp: a device left open
+  on a stale copy will pull the newer data instead of overwriting it.
+- Only works when the app is opened from the **web link**, not from a copy
+  downloaded to disk — OAuth can't authorize a `file://` page.
+- Certificate photos are not synced through Drive yet; they stay on the device
+  that uploaded them (and in the backup folder, if one is connected).
+
+**3. The older desktop-only file sync.**
+**🔗 חבר קובץ נתונים** picks a file inside his OneDrive/Google Drive *folder* and
+auto-saves into it, letting his desktop cloud client sync it. If that folder is
+shared with you, open the **same file** via **📂 פתח קובץ קיים**.
+
+> This one needs Chrome or Edge **on desktop** — the File System Access API it
+> relies on does not exist in any mobile browser, and the Drive Android app keeps
+> no local folder for it to point at. Use the Google Drive sync above for phones.
 
 ## Files
 - `gemstone-tracker.html` — the entire app (open this).

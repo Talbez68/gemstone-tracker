@@ -94,6 +94,55 @@ function buildXlsx(sheets) {
   return zipStore(files);
 }
 
+// --- fake Google Drive -------------------------------------------------------
+// Stubs the GIS token client and the Drive REST endpoints in-page, so the sync
+// logic is exercised for real without a Google login. `seedRemote` is the file
+// already sitting in Drive, or null for "no file yet".
+async function stubDrive(page, seedRemote) {
+  await page.addInitScript((remote) => {
+    window.google = { accounts: { oauth2: { initTokenClient: (cfg) => ({
+      callback: cfg.callback,
+      requestAccessToken() { const cb = this.callback; setTimeout(() => cb({ access_token: 'tok', expires_in: 3600 }), 0); },
+    }) } } };
+
+    const D = window.__drive = { file: remote ? { id: 'file1', modifiedTime: 't0', body: JSON.stringify(remote) } : null, n: 1, uploads: 0 };
+    const stamp = () => 't' + D.n++;
+    const realFetch = window.fetch.bind(window);
+    const json = (o) => new Response(JSON.stringify(o), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    window.fetch = async (url, opts = {}) => {
+      const u = String((url && url.url) || url);
+      if (!u.startsWith('https://www.googleapis.com/')) return realFetch(url, opts);
+      if (/\/upload\/drive\/v3\/files\?/.test(u)) {          // create, multipart
+        const body = String(opts.body);
+        D.file = { id: 'file1', modifiedTime: stamp(), body: body.slice(body.lastIndexOf('\r\n\r\n') + 4, body.lastIndexOf('\r\n--')) };
+        D.uploads++;
+        return json({ id: D.file.id, modifiedTime: D.file.modifiedTime });
+      }
+      if (/\/upload\/drive\/v3\/files\//.test(u)) {          // update, raw body
+        D.file.body = String(opts.body); D.file.modifiedTime = stamp(); D.uploads++;
+        return json({ id: D.file.id, modifiedTime: D.file.modifiedTime });
+      }
+      if (/\/drive\/v3\/files\?/.test(u)) return json({ files: D.file ? [{ id: D.file.id, modifiedTime: D.file.modifiedTime }] : [] });
+      if (/\/drive\/v3\/files\//.test(u)) {
+        if (u.includes('alt=media')) return new Response(D.file.body, { status: 200 });
+        return json({ modifiedTime: D.file.modifiedTime });
+      }
+      return json({});
+    };
+  }, seedRemote || null);
+}
+// A remote file body: the app's wrapper around a state carrying one named vendor.
+function remoteFile(savedAt, vendorName) {
+  return {
+    app: 'gemstone-tracker', savedAt,
+    state: { currency: '$', savedAt, activeTripId: 't1', trips: [{
+      id: 't1', name: 'Remote trip', date: '2026-07-03', activeId: 'v9',
+      vendors: [{ id: 'v9', name: vendorName, code: 'ZZ', rows: [{ serial: 'ZZ-01', weight: '1.5', stones: '1', shape: '', cost: '', cert: '', notes: '', sale: '', sold: false }] }],
+    }] },
+  };
+}
+const driveBody = (page) => page.evaluate(() => JSON.parse(window.__drive.file.body));
+
 // Collect console errors + uncaught exceptions for every test; a broken app surfaces here.
 function trackErrors(page) {
   const errors = [];
@@ -253,5 +302,100 @@ test.describe('Gemstone tracker', () => {
     await expect.poll(async () =>
       page.evaluate((key) => JSON.parse(localStorage.getItem(key)).trips[0].vendors[0].rows[0].weight, STORAGE_KEY),
     ).toBe('1.75');
+  });
+});
+
+// Google OAuth refuses file:// origins, so the Drive tests run over http://localhost.
+test.describe('Google Drive sync', () => {
+  let server, origin;
+
+  test.beforeAll(async () => {
+    const http = await import('node:http');
+    const fs = await import('node:fs');
+    server = http.createServer((req, res) => {
+      const file = req.url.split('?')[0] === '/' ? '/gemstone-tracker.html' : req.url.split('?')[0];
+      try {
+        const body = fs.readFileSync(path.resolve('.' + file));
+        res.writeHead(200, { 'Content-Type': file.endsWith('.js') ? 'text/javascript' : 'text/html' });
+        res.end(body);
+      } catch { res.writeHead(404); res.end('no'); }
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    origin = `http://localhost:${server.address().port}`;
+  });
+  test.afterAll(() => server && server.close());
+
+  const open = async (page) => {
+    await page.goto(`${origin}/gemstone-tracker.html`);
+    await page.evaluate(() => navigator.serviceWorker?.getRegistrations().then((rs) => rs.forEach((r) => r.unregister())));
+  };
+  const vendorNames = (page) => page.evaluate(() => state.trips.flatMap((t) => t.vendors.map((v) => v.name)));
+
+  test('connecting with no file in Drive creates one and uploads the local data', async ({ page }) => {
+    await seed(page);
+    await stubDrive(page, null);
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    const body = await driveBody(page);
+    expect(body.state.trips[0].vendors[0].name).toBe('ספק בדיקה');
+    expect(body.savedAt).toBeTruthy();
+    // the chip reports a live connection
+    await expect(page.locator('#driveUI .sync-chip')).toContainText('Google Drive');
+  });
+
+  test('connecting adopts the Drive copy when it is newer than this device', async ({ page }) => {
+    await seed(page);                                        // local state has no savedAt at all
+    await stubDrive(page, remoteFile('2026-08-16T10:00:00.000Z', 'ספק מהטלפון'));
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    expect(await vendorNames(page)).toEqual(['ספק מהטלפון']);
+  });
+
+  test('connecting pushes local data up when Drive holds an older copy', async ({ page }) => {
+    await page.addInitScript((key) => {
+      localStorage.setItem(key, JSON.stringify({
+        currency: '$', savedAt: '2026-08-16T12:00:00.000Z', activeTripId: 't1',
+        trips: [{ id: 't1', name: 'Newer local', date: '2026-07-03', activeId: 'v1',
+          vendors: [{ id: 'v1', name: 'ספק חדש יותר', code: 'AB', rows: [{ serial: 'AB-01', weight: '2', stones: '1', shape: '', cost: '', cert: '', notes: '', sale: '', sold: false }] }] }],
+      }));
+    }, STORAGE_KEY);
+    await stubDrive(page, remoteFile('2026-08-16T09:00:00.000Z', 'ספק ישן'));
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    expect(await vendorNames(page)).toEqual(['ספק חדש יותר']);       // local kept
+    expect((await driveBody(page)).state.trips[0].vendors[0].name).toBe('ספק חדש יותר');   // and pushed
+  });
+
+  test('a stale tab cannot clobber newer data written by the other device', async ({ page }) => {
+    await seed(page);
+    await stubDrive(page, null);
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+
+    // the phone saves something newer straight into Drive, behind this tab's back
+    await page.evaluate(() => {
+      window.__drive.file.body = JSON.stringify({ app: 'gemstone-tracker', savedAt: '2099-01-01T00:00:00.000Z',
+        state: { currency: '$', savedAt: '2099-01-01T00:00:00.000Z', activeTripId: 't1', trips: [{ id: 't1', name: 'From phone', date: '2026-07-03', activeId: 'v9',
+          vendors: [{ id: 'v9', name: 'ספק מהטלפון', code: 'ZZ', rows: [{ serial: 'ZZ-01', weight: '1', stones: '1', shape: '', cost: '', cert: '', notes: '', sale: '', sold: false }] }] }] } });
+      window.__drive.file.modifiedTime = 'tPhone';
+    });
+    // this tab now edits and pushes – it must back off and take the newer copy instead
+    await page.evaluate(async () => { state.trips[0].vendors[0].name = 'עריכה מקומית'; save(); await drivePush(); });
+    expect(await vendorNames(page)).toEqual(['ספק מהטלפון']);
+    expect((await driveBody(page)).state.trips[0].vendors[0].name).toBe('ספק מהטלפון');
+  });
+
+  test('a local edit is pushed to Drive automatically', async ({ page }) => {
+    await seed(page);
+    await stubDrive(page, null);
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    await page.locator('tbody tr').first().locator('input.num').nth(0).fill('3.5');
+    await expect.poll(async () => (await driveBody(page)).state.trips[0].vendors[0].rows[0].weight).toBe('3.5');
   });
 });
