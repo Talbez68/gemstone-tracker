@@ -316,6 +316,18 @@ test.describe('Gemstone tracker', () => {
     expect(rows).toEqual([['2.03', '21586'], ['2.03', '1500']]);
   });
 
+  test('the old file-handle sync is gone; Google Drive is the only sync', async ({ page }) => {
+    await seed(page);
+    await page.goto(APP_URL);
+    const gone = await page.evaluate(() => ['connectNewFile', 'connectExistingFile', 'renderSyncUI', 'loadFromSync', 'writeSyncFile']
+      .map((f) => typeof window[f]));
+    expect(gone).toEqual(['undefined', 'undefined', 'undefined', 'undefined', 'undefined']);
+    const html = await page.evaluate(() => document.body.innerHTML);
+    expect(html).not.toContain('חבר קובץ נתונים');
+    expect(html).not.toContain('פתח קובץ קיים');
+    expect(await page.evaluate(() => typeof connectDrive)).toBe('function');
+  });
+
   test('data persists to localStorage after editing', async ({ page }) => {
     await seed(page);
     await page.goto(APP_URL);
