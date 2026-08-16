@@ -37,7 +37,7 @@ In the app's menu, under **סנכרון בענן**, click **☁️ סנכרן ע
 sign in. Do that once per device with the **same Google account** and everything
 syncs by itself, through a single `gemstones.json` in his own Drive.
 
-- Works on desktop *and* Android — unlike the older file-based sync below.
+- Works on desktop *and* Android.
 - Everything lands in one Drive folder, **מעקב אבני חן**: `gemstones.json` plus
   the certificate photos, so **photos sync across devices too**. A photo taken on
   the laptop is pulled from Drive the first time the phone shows that row, then
@@ -49,14 +49,9 @@ syncs by itself, through a single `gemstones.json` in his own Drive.
 - Only works when the app is opened from the **web link**, not from a copy
   downloaded to disk — OAuth can't authorize a `file://` page.
 
-**3. The older desktop-only file sync.**
-**🔗 חבר קובץ נתונים** picks a file inside his OneDrive/Google Drive *folder* and
-auto-saves into it, letting his desktop cloud client sync it. If that folder is
-shared with you, open the **same file** via **📂 פתח קובץ קיים**.
-
-> This one needs Chrome or Edge **on desktop** — the File System Access API it
-> relies on does not exist in any mobile browser, and the Drive Android app keeps
-> no local folder for it to point at. Use the Google Drive sync above for phones.
+> An older desktop-only sync (🔗 חבר קובץ נתונים) was removed once Drive sync
+> landed: it was built on the File System Access API, which no mobile browser
+> implements, so it could never include his phone.
 
 ## Files
 - `gemstone-tracker.html` — the entire app (open this).

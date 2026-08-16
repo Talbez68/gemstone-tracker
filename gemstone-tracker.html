@@ -45,13 +45,9 @@
   .saved{font-size:14px; color:#d8f0eb; opacity:0; transition:.3s; white-space:nowrap}
   .saved.show{opacity:1}
   /* sync UI */
-  #syncUI{display:flex; gap:8px; align-items:center}
   .sync-chip{display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.16);
     color:#fff; padding:7px 12px; border-radius:9px; font-size:14px; font-weight:600}
   .sync-chip b{font-weight:700}
-  .syncbanner{background:#fff4d6; color:#7a5b00; border-bottom:1px solid #e6cf8a;
-    padding:10px 20px; font-size:15px; display:flex; align-items:center; gap:12px; flex-wrap:wrap}
-  .syncbanner .btn{padding:8px 14px; font-size:14px}
   .btn-amber{background:var(--gold); color:#fff}
 
   /* ---------- Trip bar ---------- */
@@ -252,10 +248,10 @@
   .menu-item.active{background:var(--accent); color:#fff; border-color:var(--accent)}
   .menu-item.guide{background:#fff7e6; border-color:var(--gold); color:#8a6a16}
   .menu-item.guide.active{background:var(--gold); color:#fff}
-  #sideMenu #driveUI, #sideMenu #syncUI, #sideMenu #backupUI{display:flex; flex-direction:column; align-items:stretch; gap:8px}
-  #sideMenu #driveUI .sync-chip, #sideMenu #syncUI .sync-chip, #sideMenu #backupUI .sync-chip{justify-content:center; background:var(--auto); color:var(--accent-d); border:1px solid var(--line)}
-  #sideMenu #driveUI .btn, #sideMenu #syncUI .btn, #sideMenu #backupUI .btn{justify-content:center; width:100%; background:var(--soft); color:var(--accent-d); border:1px solid var(--line); font-size:15px}
-  #sideMenu #driveUI .btn:hover, #sideMenu #syncUI .btn:hover, #sideMenu #backupUI .btn:hover{border-color:var(--accent)}
+  #sideMenu #driveUI, #sideMenu #backupUI{display:flex; flex-direction:column; align-items:stretch; gap:8px}
+  #sideMenu #driveUI .sync-chip, #sideMenu #backupUI .sync-chip{justify-content:center; background:var(--auto); color:var(--accent-d); border:1px solid var(--line)}
+  #sideMenu #driveUI .btn, #sideMenu #backupUI .btn{justify-content:center; width:100%; background:var(--soft); color:var(--accent-d); border:1px solid var(--line); font-size:15px}
+  #sideMenu #driveUI .btn:hover, #sideMenu #backupUI .btn:hover{border-color:var(--accent)}
   /* restore-a-version overlay */
   .rst-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:80; align-items:center; justify-content:center; padding:18px}
   .rst-box{background:#fff; border-radius:16px; padding:22px 24px; max-width:520px; width:100%; max-height:84vh; overflow:auto; box-shadow:0 12px 40px rgba(0,0,0,.3)}
@@ -402,7 +398,6 @@
   <h1><span class="gem">💎</span> מעקב אבני חן</h1>
   <span class="saved" id="saved">✓ נשמר</span>
 </header>
-<div id="syncBanner" class="syncbanner" style="display:none"></div>
 
 <div class="menu-backdrop" id="menuBackdrop" onclick="closeDrawer()"></div>
 <div class="layout">
@@ -435,7 +430,6 @@
     <div class="menu-section">
       <div class="menu-title">סנכרון בענן</div>
       <span id="driveUI"></span>
-      <span id="syncUI"></span>
     </div>
   </aside>
 
@@ -551,8 +545,7 @@ function save(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   const el=$('saved'); el.classList.add('show');
   clearTimeout(saveTimer); saveTimer=setTimeout(()=>el.classList.remove('show'),1200);
-  scheduleSyncWrite();      // also mirror to the linked cloud file, if any
-  scheduleDrivePush();      // ...and to Google Drive, if connected
+  scheduleDrivePush();      // mirror to Google Drive, if connected
   scheduleSnapshot();       // rolling daily snapshots (+ off-device backup folder)
 }
 
@@ -1139,8 +1132,6 @@ document.body.appendChild(dl);
    cloud client syncs it. localStorage stays as the safety net.
    Uses the File System Access API (Chrome/Edge on desktop).
    ============================================================ */
-const SYNC_SUPPORTED = !!(window.showOpenFilePicker && window.indexedDB);
-let syncHandle=null, syncNeedsReconnect=false, syncWriteTimer=null, syncBusy=false;
 
 function idbDB(){ return new Promise((res,rej)=>{ const r=indexedDB.open('gem-sync',3);
   r.onupgradeneeded=()=>{ const db=r.result;
@@ -1407,86 +1398,6 @@ function renderBackupUI(status){
   }
 }
 
-function scheduleSyncWrite(){
-  if(!syncHandle||syncNeedsReconnect) return;
-  clearTimeout(syncWriteTimer); syncWriteTimer=setTimeout(writeSyncFile,1500);
-}
-async function writeSyncFile(){
-  if(!syncHandle||syncBusy) return; syncBusy=true;
-  try{
-    const w=await syncHandle.createWritable();
-    await w.write(JSON.stringify(state,null,2)); await w.close();
-    renderSyncUI('synced');
-  }catch(e){ renderSyncUI('error'); }
-  finally{ syncBusy=false; }
-}
-async function loadFromSync(){
-  try{
-    const file=await syncHandle.getFile(); const txt=await file.text();
-    if(!txt.trim()){ await writeSyncFile(); return; }   // brand-new empty file: seed it
-    const s=JSON.parse(txt);
-    if(s.trips){ state=s; }
-    else if(s.vendors){ const t={id:rid('t'),name:'נסיעה מיובאת',date:today(),activeId:s.vendors[0]?.id,vendors:s.vendors}; state={currency:s.currency||'$',activeTripId:t.id,trips:[t]}; }
-    else return;
-    if(!state.activeTripId) state.activeTripId=state.trips[0].id;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    render();
-  }catch(e){ /* keep local copy on any read error */ }
-}
-
-async function connectNewFile(){
-  try{
-    syncHandle=await window.showSaveFilePicker({suggestedName:'gemstones.json',
-      types:[{description:'נתוני אבני חן',accept:{'application/json':['.json']}}]});
-    await idbSet('syncHandle',syncHandle); syncNeedsReconnect=false;
-    await writeSyncFile(); renderSyncUI('synced');
-    alert('מצוין! מעכשיו הנתונים נשמרים אוטומטית לקובץ הזה.\nשמרו אותו בתיקיית OneDrive / Google Drive כדי שיסונכרן.');
-  }catch(e){ if(e&&e.name!=='AbortError') alert('לא ניתן לחבר את הקובץ.'); }
-}
-async function connectExistingFile(){
-  try{
-    const [h]=await window.showOpenFilePicker({multiple:false,
-      types:[{description:'נתוני אבני חן',accept:{'application/json':['.json']}}]});
-    syncHandle=h; await idbSet('syncHandle',syncHandle); syncNeedsReconnect=false;
-    await loadFromSync(); renderSyncUI('synced');
-  }catch(e){ if(e&&e.name!=='AbortError') alert('לא ניתן לפתוח את הקובץ.'); }
-}
-async function disconnectSync(){
-  if(!confirm('לנתק את הסנכרון לקובץ? הנתונים יישארו שמורים במחשב.')) return;
-  syncHandle=null; syncNeedsReconnect=false; await idbDel('syncHandle'); renderSyncUI();
-}
-async function reconnectSync(){
-  if(!syncHandle) return;
-  try{
-    const p=await syncHandle.requestPermission({mode:'readwrite'});
-    if(p==='granted'){ syncNeedsReconnect=false; await loadFromSync(); renderSyncUI('synced'); }
-  }catch(e){}
-}
-
-function renderSyncUI(status){
-  const el=$('syncUI'), banner=$('syncBanner'); if(!el) return; el.innerHTML=''; banner.style.display='none';
-  if(!SYNC_SUPPORTED){
-    el.innerHTML='<span class="sync-chip" title="הדפדפן לא תומך בחיבור קובץ; השתמשו ב\\"גיבוי\\"">💾 שמירה מקומית</span>';
-    return;
-  }
-  if(syncHandle && !syncNeedsReconnect){
-    const dot = status==='error' ? '⚠️' : '🔗';
-    const name = (syncHandle.name||'gemstones.json');
-    el.innerHTML=`<span class="sync-chip" title="הנתונים נשמרים אוטומטית לקובץ הזה. שמירה בתיקיית OneDrive/Drive מסנכרנת בין מחשבים.">${dot} מסונכרן: <b>${escapeHtml(name)}</b></span>`;
-    const d=document.createElement('button'); d.className='btn btn-ghost btn-sm'; d.textContent='נתק'; d.title='ניתוק הסנכרון לקובץ. הנתונים יישארו שמורים במחשב.'; d.onclick=disconnectSync;
-    el.appendChild(d);
-  }else if(syncHandle && syncNeedsReconnect){
-    el.innerHTML=`<span class="sync-chip">🔌 מנותק</span>`;
-    banner.style.display='flex';
-    banner.innerHTML='⚠️ יש קובץ סנכרון מחובר. לחצו כדי להתחבר מחדש ולטעון את הנתונים העדכניים.';
-    const b=document.createElement('button'); b.className='btn btn-amber'; b.textContent='🔗 התחבר מחדש'; b.title='התחברות מחדש לקובץ הסנכרון וטעינת הנתונים העדכניים ממנו.'; b.onclick=reconnectSync;
-    banner.appendChild(b);
-  }else{
-    const b1=document.createElement('button'); b1.className='btn btn-ghost'; b1.textContent='🔗 חבר קובץ נתונים'; b1.title='יצירת קובץ נתונים (למשל בתיקיית OneDrive/Google Drive) – ומעכשיו הכל נשמר אליו אוטומטית ומסונכרן בין מחשבים.'; b1.onclick=connectNewFile;
-    const b2=document.createElement('button'); b2.className='btn btn-ghost'; b2.textContent='📂 פתח קובץ קיים'; b2.title='פתיחת קובץ נתונים קיים (למשל כזה שכבר מסונכרן) וטעינת הנתונים ממנו.'; b2.onclick=connectExistingFile;
-    el.appendChild(b1); el.appendChild(b2);
-  }
-}
 
 /* ============================================================
    GOOGLE DRIVE SYNC — the one that also works on his phone.
@@ -1728,15 +1639,7 @@ setInterval(()=>{
 
 async function initSync(){
   initDrive();
-  if(!SYNC_SUPPORTED){ renderSyncUI(); return; }
-  try{
-    syncHandle=await idbGet('syncHandle');
-    if(syncHandle){
-      const p=await syncHandle.queryPermission({mode:'readwrite'});
-      if(p==='granted'){ await loadFromSync(); renderSyncUI('synced'); }
-      else{ syncNeedsReconnect=true; renderSyncUI(); }
-    }else renderSyncUI();
-  }catch(e){ syncHandle=null; renderSyncUI(); }
+  idbDel('syncHandle').catch(()=>{});          // drop the retired file-sync handle
   // restore the off-device backup folder handle, if any
   try{
     backupDir=await idbGet('backupDir');
@@ -2145,7 +2048,6 @@ function buildGuide(){
     <p>תמונת תעודה שצולמה במחשב מופיעה בטלפון כשנכנסים לשורה שלה (היא נמשכת מ‑Drive בפעם הראשונה, ואז נשמרת גם במכשיר).</p>
     <p>אם ערכתם בשני מכשירים במקביל – נשמרת <b>הגרסה שנשמרה אחרונה</b>, והאפליקציה לא תדרוס נתונים חדשים יותר בישנים.</p>
     <p><b>שימו לב:</b> הסנכרון עובד רק כשפותחים את האפליקציה <b>מהקישור באינטרנט</b> (לא מקובץ שהורד למחשב).</p>
-    <p>יש גם דרך ותיקה יותר למחשבים בלבד – <b>🔗 חבר קובץ נתונים</b> שומר לקובץ בתיקיית OneDrive/Drive במחשב. בטלפון היא לא עובדת, ולכן עדיף Google Drive.</p>
   `,null)}
 
   ${guideStep(18,'עדכונים – אין מה לעשות',`
