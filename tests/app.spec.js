@@ -122,7 +122,7 @@ async function stubDrive(page, seedRemote) {
         D.file.body = String(opts.body); D.file.modifiedTime = stamp(); D.uploads++;
         return json({ id: D.file.id, modifiedTime: D.file.modifiedTime });
       }
-      if (/\/drive\/v3\/files\?/.test(u)) return json({ files: D.file ? [{ id: D.file.id, modifiedTime: D.file.modifiedTime }] : [] });
+      if (/\/drive\/v3\/files\?/.test(u)) return json({ files: D.file ? [{ id: D.file.id, modifiedTime: D.file.modifiedTime, webViewLink: 'https://drive.google.com/file/d/file1/view' }] : [] });
       if (/\/drive\/v3\/files\//.test(u)) {
         if (u.includes('alt=media')) return new Response(D.file.body, { status: 200 });
         return json({ modifiedTime: D.file.modifiedTime });
@@ -340,8 +340,10 @@ test.describe('Google Drive sync', () => {
     const body = await driveBody(page);
     expect(body.state.trips[0].vendors[0].name).toBe('ספק בדיקה');
     expect(body.savedAt).toBeTruthy();
-    // the chip reports a live connection
-    await expect(page.locator('#driveUI .sync-chip')).toContainText('Google Drive');
+    // the chip names the file, and he gets a button that opens it in Drive
+    await expect(page.locator('#driveUI .sync-chip')).toContainText('gemstones.json');
+    await expect(page.locator('#driveUI button', { hasText: 'הצג ב' })).toBeVisible();
+    expect(await page.evaluate(() => driveLink)).toContain('drive.google.com');
   });
 
   test('connecting adopts the Drive copy when it is newer than this device', async ({ page }) => {

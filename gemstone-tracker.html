@@ -1486,7 +1486,7 @@ const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
 const DRIVE_FILENAME='gemstones.json';
 /* OAuth needs a real origin – the downloaded file:// copy can't sync */
 const DRIVE_SUPPORTED = location.protocol==='https:' || location.hostname==='localhost';
-let driveOn=false, driveFileId=null, driveModified=null, driveNeedsAuth=false,
+let driveOn=false, driveFileId=null, driveLink='', driveModified=null, driveNeedsAuth=false,
     driveToken=null, driveTokenExp=0, driveClient=null, driveBusy=false, drivePushTimer=null;
 
 function loadGIS(){
@@ -1534,7 +1534,7 @@ function driveUnwrap(txt){
 }
 async function driveFindFile(){
   const q=encodeURIComponent("name='"+DRIVE_FILENAME+"' and trashed=false");
-  const r=await driveFetch('https://www.googleapis.com/drive/v3/files?spaces=drive&orderBy=modifiedTime desc&fields=files(id,modifiedTime)&q='+q);
+  const r=await driveFetch('https://www.googleapis.com/drive/v3/files?spaces=drive&orderBy=modifiedTime desc&fields=files(id,modifiedTime,webViewLink)&q='+q);
   const j=await r.json();
   return (j.files&&j.files[0])||null;
 }
@@ -1543,7 +1543,7 @@ async function driveCreateFile(){
   const body='--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'
     +JSON.stringify({name:DRIVE_FILENAME, mimeType:'application/json'})
     +'\r\n--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+drivePayload()+'\r\n--'+b+'--';
-  const r=await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime',
+  const r=await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime,webViewLink',
     {method:'POST', headers:{'Content-Type':'multipart/related; boundary='+b}, body});
   return r.json();
 }
@@ -1598,10 +1598,11 @@ async function connectDrive(){
     let f=await driveFindFile();
     if(!f) f=await driveCreateFile();
     driveFileId=f.id; driveModified=null; driveOn=true;
-    await idbSet('drive',{fileId:driveFileId});
+    driveLink=f.webViewLink||('https://drive.google.com/file/d/'+f.id+'/view');
+    await idbSet('drive',{fileId:driveFileId, link:driveLink});
     await drivePull(true);
     renderDriveUI('synced');
-    alert('מחובר ל‑Google Drive ✓\nמעכשיו הנתונים מסתנכרנים בין המחשב לטלפון – צריך רק להתחבר גם שם עם אותו חשבון.');
+    alert('מחובר ל‑Google Drive ✓\n\nהנתונים נשמרים לקובץ '+DRIVE_FILENAME+' שנמצא ב"הדרייב שלי" (My Drive), ישירות בשורש – בלי תיקייה.\nאפשר תמיד להגיע אליו מכפתור "📂 הצג ב‑Drive" שבתפריט.\n\nכדי לסנכרן גם את הטלפון: פותחים שם את אותו קישור ומתחברים לאותו חשבון Google.');
   }catch(e){
     driveOn=false; renderDriveUI();
     alert('לא הצלחנו להתחבר ל‑Google Drive.\n('+((e&&e.message)||e)+')');
@@ -1609,7 +1610,7 @@ async function connectDrive(){
 }
 async function disconnectDrive(){
   if(!confirm('לנתק את הסנכרון עם Google Drive? הנתונים יישארו במכשיר וגם בקובץ שב‑Drive.')) return;
-  driveOn=false; driveFileId=null; driveModified=null; driveToken=null; driveNeedsAuth=false;
+  driveOn=false; driveFileId=null; driveLink=''; driveModified=null; driveToken=null; driveNeedsAuth=false;
   await idbDel('drive'); renderDriveUI();
 }
 function renderDriveUI(status){
@@ -1619,7 +1620,10 @@ function renderDriveUI(status){
     return;
   }
   if(driveOn&&!driveNeedsAuth){
-    el.innerHTML=`<span class="sync-chip" title="הנתונים נשמרים אוטומטית לקובץ ${DRIVE_FILENAME} ב‑Google Drive שלך, ומסתנכרנים לכל מכשיר שמחובר לאותו חשבון.">${status==='error'?'⚠️':'☁️'} מסונכרן: <b>Google Drive</b></span>`;
+    el.innerHTML=`<span class="sync-chip" title="הנתונים נשמרים אוטומטית לקובץ ${DRIVE_FILENAME} ב‑Google Drive שלך, ומסתנכרנים לכל מכשיר שמחובר לאותו חשבון.">${status==='error'?'⚠️':'☁️'} מסונכרן: <b>${DRIVE_FILENAME}</b></span>`;
+    const o=document.createElement('button'); o.className='btn btn-ghost btn-sm'; o.textContent='📂 הצג ב‑Drive';
+    o.title='פתיחת הקובץ gemstones.json ב‑Google Drive, בחלון חדש.'; o.onclick=()=>window.open(driveLink,'_blank','noopener');
+    el.appendChild(o);
     const r=document.createElement('button'); r.className='btn btn-ghost btn-sm'; r.textContent='רענן';
     r.title='טעינת הנתונים העדכניים ביותר מ‑Drive.'; r.onclick=()=>drivePull(true).catch(()=>renderDriveUI('error'));
     const d=document.createElement('button'); d.className='btn btn-ghost btn-sm'; d.textContent='נתק'; d.onclick=disconnectDrive;
@@ -1639,7 +1643,8 @@ async function initDrive(){
   if(!DRIVE_SUPPORTED) return;
   let saved=null; try{ saved=await idbGet('drive'); }catch(e){}
   if(!saved||!saved.fileId) return;
-  driveFileId=saved.fileId; driveOn=true; renderDriveUI('synced');
+  driveFileId=saved.fileId; driveLink=saved.link||('https://drive.google.com/file/d/'+saved.fileId+'/view');
+  driveOn=true; renderDriveUI('synced');
   try{ await driveAuth(false); await drivePull(true); renderDriveUI('synced'); }   // silent renewal
   catch(e){ driveNeedsAuth=true; renderDriveUI(); }
 }
@@ -2064,7 +2069,8 @@ function buildGuide(){
 
   ${guideStep(17,'סנכרון בין המחשב לטלפון (לא חובה)',`
     <p>רוצים שאותם נתונים יהיו גם במחשב וגם בטלפון? בתפריט, בקטע <b>סנכרון בענן</b>, לוחצים <b>☁️ סנכרן עם Google Drive</b> ומתחברים לחשבון Google. עושים את זה <b>פעם אחת בכל מכשיר</b>, עם <b>אותו חשבון</b> – ומאז הכול מסתנכרן לבד.</p>
-    <p>הנתונים נשמרים לקובץ אחד בשם <b>gemstones.json</b> ב‑Drive הפרטי שלך. האפליקציה רואה רק את הקובץ הזה ושום דבר אחר ב‑Drive.</p>
+    <p>הנתונים נשמרים לקובץ אחד בשם <b>gemstones.json</b> ב‑Drive הפרטי שלך. הוא נוצר ב<b>"הדרייב שלי" (My Drive)</b>, ישירות בשורש – בלי תיקייה. לא צריך לחפש אותו: אחרי החיבור מופיע בתפריט כפתור <b>📂 הצג ב‑Drive</b> שפותח אותו ישירות.</p>
+    <p>אפשר להזיז אותו לתיקייה שנוחה לך – הסנכרון ימשיך לעבוד. האפליקציה רואה רק את הקובץ הזה ושום דבר אחר ב‑Drive.</p>
     <p>אם ערכתם בשני מכשירים במקביל – נשמרת <b>הגרסה שנשמרה אחרונה</b>, והאפליקציה לא תדרוס נתונים חדשים יותר בישנים.</p>
     <p><b>שימו לב:</b> הסנכרון עובד רק כשפותחים את האפליקציה <b>מהקישור באינטרנט</b> (לא מקובץ שהורד למחשב).</p>
     <p>יש גם דרך ותיקה יותר למחשבים בלבד – <b>🔗 חבר קובץ נתונים</b> שומר לקובץ בתיקיית OneDrive/Drive במחשב. בטלפון היא לא עובדת, ולכן עדיף Google Drive.</p>
