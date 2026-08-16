@@ -455,6 +455,20 @@ test.describe('Google Drive sync', () => {
     await expect(page.locator('img.cert-thumb').first()).toBeVisible();
   });
 
+  test('a photo that reaches Drive late still shows up, without a manual refresh', async ({ page }) => {
+    const remote = remoteFile('2099-01-01T00:00:00.000Z', 'ספק מהמחשב');
+    remote.state.trips[0].vendors[0].rows[0].cert = 'cert_late01.jpg';
+    await seed(page);
+    await stubDrive(page, remote, null);                 // row references a photo Drive doesn't have yet
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    await expect(page.locator('.cert-missing').first()).toBeVisible();
+    // the other device finishes uploading a moment later
+    await page.evaluate(() => { window.__drive.files['cert_late01.jpg'] = { id: 'late1', modifiedTime: 't9', body: 'PRETEND-JPEG-BYTES' }; });
+    await expect(page.locator('img.cert-thumb').first()).toBeVisible({ timeout: 15000 });
+  });
+
   test('a local edit is pushed to Drive automatically', async ({ page }) => {
     await seed(page);
     await stubDrive(page, null);
