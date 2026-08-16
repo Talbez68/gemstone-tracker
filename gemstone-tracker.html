@@ -1216,11 +1216,18 @@ async function deleteCertImage(name){
 /* editable cell in the main table */
 function certCell(r,tr){
   const box=document.createElement('div'); box.className='cert-cell';
+  let tries=0;
   const render=()=>{
     box.innerHTML='';
     if(r.cert){
       const img=document.createElement('img'); img.className='cert-thumb'; img.alt='תעודה'; img.loading='lazy';
-      certURL(r.cert).then(u=>{ if(u){ img.src=u; } else { img.replaceWith(certMissing()); } });
+      certURL(r.cert).then(u=>{
+        if(u){ img.src=u; return; }
+        img.replaceWith(certMissing());
+        // a photo just taken on the other device can reach Drive a moment after
+        // the row does – give it a couple of chances before giving up
+        if(driveOn && tries<3){ tries++; setTimeout(render,4000); }
+      });
       img.onclick=()=>openCertLightbox(r,render);
       box.appendChild(img);
     }else{
@@ -1236,7 +1243,13 @@ function certCell(r,tr){
   render();
   return box;
 }
-function certMissing(){ const s=document.createElement('span'); s.className='cert-missing'; s.title='התמונה לא נמצאה במכשיר הזה. חברו את תיקיית הגיבוי כדי לטעון אותה.'; s.textContent='🖼️?'; return s; }
+function certMissing(){
+  const s=document.createElement('span'); s.className='cert-missing'; s.textContent='🖼️?';
+  s.title = driveOn
+    ? 'התמונה עדיין לא ירדה מ‑Google Drive. אם היא צולמה עכשיו במכשיר אחר – היא תופיע תוך רגע.'
+    : 'התמונה לא נמצאה במכשיר הזה. חברו את תיקיית הגיבוי או סנכרנו עם Google Drive כדי לטעון אותה.';
+  return s;
+}
 
 /* fill in <img data-cert="filename"> thumbnails (summary / print / mobile views) */
 function hydrateCertThumbs(root){
@@ -1705,6 +1718,13 @@ document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible') drivePull().catch(()=>{});
   else { clearTimeout(drivePushTimer); drivePush().catch(()=>{}); }
 });
+/* ...and keep checking while he's looking at it – otherwise a laptop left open
+   on screen never notices what he just did on the phone. A pull is one cheap
+   metadata call unless something actually changed. */
+const DRIVE_POLL_MS=30000;
+setInterval(()=>{
+  if(driveOn&&!driveNeedsAuth&&!driveBusy&&document.visibilityState==='visible') drivePull().catch(()=>{});
+},DRIVE_POLL_MS);
 
 async function initSync(){
   initDrive();
