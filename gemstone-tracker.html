@@ -108,10 +108,13 @@
     background:var(--soft); color:var(--accent-d); font-weight:700;
     padding:9px 6px; position:sticky; top:54px; z-index:2; font-size:14px;
   }
-  .band th{padding:7px; color:#fff; font-size:14px; letter-spacing:.5px}
-  .band-taken th{background:var(--accent)}
-  .band-sales th{background:var(--gold)}
-  .band-tools th{background:#ddd6c7}
+  /* the band row labels the two halves of the table. These classes sit on the
+     <th> itself, so they need th.x – as ".band-taken th" they matched nothing
+     and the white text was left invisible on the header's own pale background. */
+  .band th{padding:7px; font-size:14px; letter-spacing:.5px; color:var(--accent-d)}
+  th.band-taken{color:var(--accent-d)}
+  th.band-sales{color:#8a6a16}          /* --gold itself only reaches 2.7:1 on this background */
+  th.band-tools{background:var(--soft)}
   tbody td input, tbody td select{
     width:100%; border:none; background:transparent; padding:9px 6px;
     font-size:15px; font-family:inherit; text-align:center; color:var(--ink);
