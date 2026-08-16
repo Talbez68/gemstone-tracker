@@ -620,6 +620,27 @@ test.describe('Google Drive sync', () => {
     await expect.poll(async () => certFolderId(page, "Dad's trip")).not.toBeNull();
   });
 
+  test('a dated backup is written on open, without waiting for an edit', async ({ page }) => {
+    await seed(page);
+    await stubDrive(page, null);
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    await open(page);                                   // reopen and touch nothing
+
+    const listBackups = () => page.evaluate(() => {
+      const all = Object.values(window.__drive.files);
+      const child = (name, parent) => all.find((f) => f.name === name && (parent === undefined || (f.parents || []).includes(parent)));
+      const root = child('מעקב אבני חן'); if (!root) return null;
+      const folder = child('backups', root.id); if (!folder) return null;
+      return all.filter((f) => (f.parents || []).includes(folder.id)).map((f) => f.name);
+    });
+    await expect.poll(listBackups).not.toBeNull();
+    const names = await listBackups();
+    expect(names).toHaveLength(1);
+    expect(names[0]).toMatch(/^gemstones_\d{4}-\d{2}-\d{2}\.json$/);
+  });
+
   test('a dated backup is written into the Drive backups folder', async ({ page }) => {
     await seed(page);
     await stubDrive(page, null);

@@ -1632,6 +1632,7 @@ async function connectDrive(){
     await drivePull(true);
     renderDriveUI('synced');
     driveCertTidyOnce().catch(()=>{});
+    driveBackupToday().catch(()=>{});
     alert('מחובר ל‑Google Drive ✓\n\nנוצרה ב"הדרייב שלי" תיקייה בשם "'+DRIVE_FOLDER+'", ובתוכה הקובץ '+DRIVE_FILENAME+' וגם תמונות התעודות.\nאפשר תמיד להגיע אליה מכפתור "📂 הצג ב‑Drive" שבתפריט.\n\nכדי לסנכרן גם את הטלפון: פותחים שם את אותו קישור ומתחברים לאותו חשבון Google.');
   }catch(e){
     driveOn=false; renderDriveUI();
@@ -1686,6 +1687,7 @@ async function initDrive(){
   // a pull that fails is just a bad moment on the network – stay connected
   try{ await drivePull(true); renderDriveUI('synced'); }catch(e){ renderDriveUI('error'); }
   driveCertTidyOnce().catch(()=>{});      // sort the photos into their folders, once per device
+  driveBackupToday().catch(()=>{});        // the day's version shouldn't wait for him to type something
 }
 /* pick up the other device's edits when he comes back to the app, and flush ours when he leaves */
 document.addEventListener('visibilitychange',()=>{
