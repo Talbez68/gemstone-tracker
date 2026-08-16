@@ -372,6 +372,26 @@ test.describe('Gemstone tracker', () => {
     }
   });
 
+  test('the guide documents Drive sync and drops the removed features', async ({ page }) => {
+    await seed(page);
+    await page.goto(APP_URL);
+    await page.evaluate(() => showView('guide'));
+    const text = await page.locator('#guideView').innerText();
+
+    // the sync and backup behaviour a user has to know about
+    for (const must of ['Google Drive', 'backups', 'רענן', '30 שניות', 'אותו חשבון', 'gemstones.json']) {
+      expect(text, `guide should explain ${must}`).toContain(must);
+    }
+    // features that no longer exist must not be documented
+    for (const gone of ['חבר תיקיית גיבוי', 'חבר קובץ נתונים', 'פתח קובץ קיים', 'ייצוא לאקסל']) {
+      expect(text, `guide should not mention ${gone}`).not.toContain(gone);
+    }
+    // the sync step carries both screenshots
+    const shots = await page.locator('.guide-step').nth(16).locator('img.guide-shot').count();
+    expect(shots).toBe(2);
+    expect(await page.evaluate(() => Object.keys(GUIDE_IMG))).toEqual(expect.arrayContaining(['drive', 'driveoff', 'backup']));
+  });
+
   test('data persists to localStorage after editing', async ({ page }) => {
     await seed(page);
     await page.goto(APP_URL);
