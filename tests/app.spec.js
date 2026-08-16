@@ -198,7 +198,8 @@ test.describe('Gemstone tracker', () => {
     const xlsx = buildXlsx([
       { name: 'Main', rows: [['1', 'GD-01', '1']] },          // summary tab – never imported
       { name: 'Elul', rows: [['1', 'GD-01', '1'], ['2', 'GD-02', '2']] },
-      { name: 'Gemesis', rows: [['1', 'RM-01', '3.6'], ['2', 'RM-02', '5.02'], ['3', 'RG-01', '2.5'], ['4', 'MS-01', '1.43'], ['5', 'MS-02', '3.02']] },
+      // Excel stores 2.03 / 5.02 as binary-float noise; import must round it back
+      { name: 'Gemesis', rows: [['1', 'RM-01', '3.6'], ['2', 'RM-02', '5.0199999999999996'], ['3', 'RG-01', '2.5'], ['4', 'MS-01', '1.43'], ['5', 'MS-02', '2.0299999999999998']] },
       { name: 'ELI', rows: [] },                              // header only – no data
     ]);
 
@@ -221,7 +222,27 @@ test.describe('Gemstone tracker', () => {
     // rows keep their serials and land under their own code
     expect(trip.vendors[1].rows.map((r) => r.serial)).toEqual(['RM-01', 'RM-02']);
     expect(trip.vendors[3].rows.map((r) => r.serial)).toEqual(['MS-01', 'MS-02']);
+    // weights come in clean, not as 5.0199999999999996 / 2.0299999999999998
+    expect(trip.vendors[1].rows.map((r) => r.weight)).toEqual(['3.6', '5.02']);
+    expect(trip.vendors[3].rows.map((r) => r.weight)).toEqual(['1.43', '2.03']);
     expect(errors, 'no console/page errors during import').toEqual([]);
+  });
+
+  test('already-imported float noise is cleaned up on load', async ({ page }) => {
+    await page.addInitScript((key) => {
+      const row = (over) => ({ serial: 'AB-01', weight: '', stones: '1', shape: '', cost: '', cert: '', notes: '', sale: '', sold: false, ...over });
+      localStorage.setItem(key, JSON.stringify({
+        currency: '$', activeTripId: 't1',
+        trips: [{ id: 't1', name: 'Test trip', date: '2026-07-03', activeId: 'v1',
+          vendors: [{ id: 'v1', name: 'AB', code: 'AB', rows: [
+            row({ weight: '2.0299999999999998', cost: '21585.999999999996' }),
+            row({ serial: 'AB-02', weight: '2.03', cost: '1500' }),   // typed by hand – must not change
+          ] }] }],
+      }));
+    }, STORAGE_KEY);
+    await page.goto(APP_URL);
+    const rows = await page.evaluate(() => state.trips[0].vendors[0].rows.map((r) => [r.weight, r.cost]));
+    expect(rows).toEqual([['2.03', '21586'], ['2.03', '1500']]);
   });
 
   test('data persists to localStorage after editing', async ({ page }) => {
