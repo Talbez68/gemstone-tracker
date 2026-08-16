@@ -28,6 +28,72 @@ async function seed(page) {
   }, STORAGE_KEY);
 }
 
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+// --- minimal .xlsx writer, so import tests need no binary fixture on disk -----
+// Entries are STORED (no compression), which the app reads without DecompressionStream.
+function crc32(buf) {
+  let crc = 0xffffffff;
+  for (const byte of buf) {
+    let c = (crc ^ byte) & 0xff;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    crc = (crc >>> 8) ^ c;
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+function zipStore(files) {
+  const locals = [], central = [];
+  let offset = 0;
+  for (const f of files) {
+    const name = Buffer.from(f.name, 'utf8'), crc = crc32(f.data), size = f.data.length;
+    const lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(0x800, 6);
+    lh.writeUInt32LE(crc, 14); lh.writeUInt32LE(size, 18); lh.writeUInt32LE(size, 22);
+    lh.writeUInt16LE(name.length, 26);
+    locals.push(lh, name, f.data);
+    const ch = Buffer.alloc(46);
+    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(0x800, 8);
+    ch.writeUInt32LE(crc, 16); ch.writeUInt32LE(size, 20); ch.writeUInt32LE(size, 24);
+    ch.writeUInt16LE(name.length, 28); ch.writeUInt32LE(offset, 42);
+    central.push(ch, name);
+    offset += 30 + name.length + size;
+  }
+  const body = Buffer.concat(locals), cd = Buffer.concat(central), eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(files.length, 8); eocd.writeUInt16LE(files.length, 10);
+  eocd.writeUInt32LE(cd.length, 12); eocd.writeUInt32LE(body.length, 16);
+  return Buffer.concat([body, cd, eocd]);
+}
+// Each sheet: {name, rows} where a row is [מספר, סריה, משקל]. The header row is added here.
+const HEADERS = ['מספר', 'סריה', 'משקל', 'מספר אבנים', 'צורה', 'עלות לקראט', 'סה"כ עלות', 'הערות', 'מכירה לקראט', 'סה"כ מכירה', 'נמכר'];
+function buildXlsx(sheets) {
+  const xmlEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const cell = (col, rowNum, text) => (Number.isNaN(Number(text)) || text === ''
+    ? `<c r="${col}${rowNum}" t="inlineStr"><is><t>${xmlEsc(text)}</t></is></c>`
+    : `<c r="${col}${rowNum}"><v>${xmlEsc(text)}</v></c>`);
+  const sheetXml = (rows) => {
+    const all = [HEADERS, ...rows];
+    const body = all.map((cells, i) => `<row r="${i + 1}">`
+      + cells.map((v, c) => cell(String.fromCharCode(65 + c), i + 1, v)).join('') + '</row>').join('');
+    return `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body}</sheetData></worksheet>`;
+  };
+  const files = sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: Buffer.from(sheetXml(s.rows), 'utf8') }));
+  files.push({
+    name: 'xl/workbook.xml',
+    data: Buffer.from('<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+      + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'
+      + sheets.map((s, i) => `<sheet name="${xmlEsc(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')
+      + '</sheets></workbook>', 'utf8'),
+  });
+  files.push({
+    name: 'xl/_rels/workbook.xml.rels',
+    data: Buffer.from('<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Target="worksheets/sheet${i + 1}.xml"/>`).join('')
+      + '</Relationships>', 'utf8'),
+  });
+  return zipStore(files);
+}
+
 // Collect console errors + uncaught exceptions for every test; a broken app surfaces here.
 function trackErrors(page) {
   const errors = [];
@@ -121,6 +187,41 @@ test.describe('Gemstone tracker', () => {
     expect(state.exportCSV).toBe('undefined');
     expect(state.importXLSX).toBe('function');
     expect(state.hasExportText).toBe(false);
+  });
+
+  test('Excel import splits a mixed sheet into one vendor per code, and skips empty sheets', async ({ page }) => {
+    const errors = trackErrors(page);
+    await seed(page);
+    await page.goto(APP_URL);
+
+    // his real workbook shape: a "Gemesis" tab holding several codes, and an empty "ELI" tab
+    const xlsx = buildXlsx([
+      { name: 'Main', rows: [['1', 'GD-01', '1']] },          // summary tab – never imported
+      { name: 'Elul', rows: [['1', 'GD-01', '1'], ['2', 'GD-02', '2']] },
+      { name: 'Gemesis', rows: [['1', 'RM-01', '3.6'], ['2', 'RM-02', '5.02'], ['3', 'RG-01', '2.5'], ['4', 'MS-01', '1.43'], ['5', 'MS-02', '3.02']] },
+      { name: 'ELI', rows: [] },                              // header only – no data
+    ]);
+
+    page.on('dialog', (d) => d.accept('נסיעה מיובאת'));       // trip-name prompt, then the summary alert
+    await page.setInputFiles('input[type=file][accept=".xlsx"]', { name: 'august.xlsx', mimeType: XLSX_MIME, buffer: xlsx });
+
+    // save is debounced; wait for the imported trip to land, then inspect it
+    const activeTrip = (key) => {
+      const s = JSON.parse(localStorage.getItem(key));
+      return s.trips.find((t) => t.id === s.activeTripId);
+    };
+    // one tab per code, named after the code; "Gemesis" and the empty "ELI" produce no tab of their own
+    await expect.poll(async () =>
+      (await page.evaluate(activeTrip, STORAGE_KEY))?.vendors.map((v) => v.name),
+    ).toEqual(['GD', 'RM', 'RG', 'MS']);
+    const trip = await page.evaluate(activeTrip, STORAGE_KEY);
+
+    expect(trip.vendors.map((v) => v.code)).toEqual(['GD', 'RM', 'RG', 'MS']);
+    expect(trip.vendors.map((v) => v.rows.length)).toEqual([2, 2, 1, 2]);
+    // rows keep their serials and land under their own code
+    expect(trip.vendors[1].rows.map((r) => r.serial)).toEqual(['RM-01', 'RM-02']);
+    expect(trip.vendors[3].rows.map((r) => r.serial)).toEqual(['MS-01', 'MS-02']);
+    expect(errors, 'no console/page errors during import').toEqual([]);
   });
 
   test('data persists to localStorage after editing', async ({ page }) => {
