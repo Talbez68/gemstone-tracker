@@ -349,6 +349,28 @@ test.describe('Gemstone tracker', () => {
     expect(await page.evaluate(() => typeof connectDrive)).toBe('function');
   });
 
+  test('the band headings are legible against the header background', async ({ page }) => {
+    await seed(page);
+    await page.goto(APP_URL);
+    const lum = (rgb) => {
+      const [r, g, b] = rgb.match(/\d+/g).map((n) => {
+        const c = n / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const styles = await page.evaluate(() => ['band-taken', 'band-sales'].map((cls) => {
+      const el = document.querySelector('.band .' + cls), cs = getComputedStyle(el);
+      return { text: el.textContent.trim(), color: cs.color, bg: cs.backgroundColor };
+    }));
+    for (const s of styles) {
+      expect(s.text.length, 'band heading has text').toBeGreaterThan(0);
+      const [a, b] = [lum(s.color), lum(s.bg)].sort((x, y) => y - x);
+      const ratio = (a + 0.05) / (b + 0.05);
+      expect(ratio, `${s.text} contrast`).toBeGreaterThanOrEqual(4.5);   // WCAG AA
+    }
+  });
+
   test('data persists to localStorage after editing', async ({ page }) => {
     await seed(page);
     await page.goto(APP_URL);
