@@ -38,10 +38,21 @@ sign in. Do that once per device with the **same Google account** and everything
 syncs by itself, through a single `gemstones.json` in his own Drive.
 
 - Works on desktop *and* Android.
-- Everything lands in one Drive folder, **מעקב אבני חן**: `gemstones.json` plus
-  the certificate photos, so **photos sync across devices too**. A photo taken on
-  the laptop is pulled from Drive the first time the phone shows that row, then
-  cached locally for offline use.
+- Everything lands in one Drive folder, **מעקב אבני חן**, kept tidy by the app:
+
+  ```
+  מעקב אבני חן/
+    gemstones.json
+    trips/
+      <trip name>/
+        certificates/     ← that trip's certificate photos
+  ```
+
+  **Photos sync across devices too**: one taken on the laptop is pulled from Drive
+  the first time the phone shows that row, then cached locally for offline use.
+  Renaming a trip re-files its photos under the new folder name, and photos left
+  loose by earlier versions are moved into place on connect. Reads look files up
+  by name rather than by path, so rearranging folders in Drive can't break sync.
 - Uses the `drive.file` scope, so the app can only ever see what it created
   itself. Nothing else in his Drive is visible to it.
 - Conflicts resolve last-write-wins, guarded by a timestamp: a device left open

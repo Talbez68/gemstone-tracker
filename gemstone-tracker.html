@@ -873,6 +873,7 @@ function duplicateTrip(){
 function renameTrip(){
   const t=activeTrip(); const name=prompt('שם חדש לנסיעה:',t.name);
   if(name===null) return; t.name=name.trim()||t.name; save(); render();
+  _tripFolders=Object.create(null); driveCertBackfill().catch(()=>{});   // re-file its photos in Drive
 }
 function deleteTrip(){
   if(state.trips.length===1){ alert('חייבת להישאר לפחות נסיעה אחת.'); return; }
@@ -1176,7 +1177,7 @@ async function saveCertImage(file){
   await certImgPut(name,blob);                            // local cache – always
   const dir=await certFolderHandle(true);                 // + drive copy when a folder is connected
   if(dir){ try{ const fh=await dir.getFileHandle(name,{create:true}); const wr=await fh.createWritable(); await wr.write(blob); await wr.close(); }catch(e){} }
-  driveCertUpload(name,blob).catch(()=>{});               // + Google Drive, so his phone gets it too
+  driveCertUpload(name,blob,activeTrip()).catch(()=>{});  // + Google Drive, so his phone gets it too
   return name;
 }
 async function certBlob(name){
@@ -1413,6 +1414,9 @@ const DRIVE_CLIENT_ID='733539090151-tas4ifrkqc5j266abfj41gtckarr09kq.apps.google
 const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
 const DRIVE_FILENAME='gemstones.json';
 const DRIVE_FOLDER='מעקב אבני חן';
+const DRIVE_TRIPS='trips', DRIVE_CERTS='certificates';
+/* a trip name is his free text – it has to survive being put inside a Drive query */
+const driveQ=n=>String(n).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 /* OAuth needs a real origin – the downloaded file:// copy can't sync */
 const DRIVE_SUPPORTED = location.protocol==='https:' || location.hostname==='localhost';
 let driveOn=false, driveFileId=null, driveLink='', driveFolderId=null, driveModified=null, driveNeedsAuth=false,
@@ -1469,27 +1473,55 @@ async function driveFindFile(){
   const j=await r.json();
   return (j.files&&j.files[0])||null;
 }
-/* one folder holds the data file and every certificate photo */
+/* the top-level folder that holds everything */
 async function driveFolder(){
   if(driveFolderId) return driveFolderId;
-  const q=encodeURIComponent("name='"+DRIVE_FOLDER+"' and mimeType='application/vnd.google-apps.folder' and trashed=false");
+  const q=encodeURIComponent("name='"+driveQ(DRIVE_FOLDER)+"' and mimeType='application/vnd.google-apps.folder' and trashed=false");
   const j=await (await driveFetch('https://www.googleapis.com/drive/v3/files?spaces=drive&fields=files(id)&q='+q)).json();
   if(j.files&&j.files[0]) return (driveFolderId=j.files[0].id);
   const r=await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id',
     {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:DRIVE_FOLDER, mimeType:'application/vnd.google-apps.folder'})});
   return (driveFolderId=(await r.json()).id);
 }
-/* find one of our files by name; null when Drive has never seen it */
-async function driveFindByName(name){
-  const q=encodeURIComponent("name='"+name+"' and trashed=false");
+/* find-or-create a sub-folder. Looking up by name first means two devices
+   racing to create the same folder end up sharing one, not making two. */
+async function driveSubFolder(name,parentId){
+  const q=encodeURIComponent("name='"+driveQ(name)+"' and mimeType='application/vnd.google-apps.folder' and '"+parentId+"' in parents and trashed=false");
   const j=await (await driveFetch('https://www.googleapis.com/drive/v3/files?spaces=drive&fields=files(id)&q='+q)).json();
+  if(j.files&&j.files[0]) return j.files[0].id;
+  const r=await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id',{method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name, mimeType:'application/vnd.google-apps.folder', parents:[parentId]})});
+  return (await r.json()).id;
+}
+/* מעקב אבני חן / trips / <שם הנסיעה> / certificates */
+let _tripFolders=Object.create(null);
+async function driveCertFolder(trip){
+  const root=await driveFolder();
+  if(!trip||!trip.name) return root;
+  const key=trip.id+'|'+trip.name;                       // renaming the trip invalidates the cache
+  if(_tripFolders[key]) return _tripFolders[key];
+  const trips=await driveSubFolder(DRIVE_TRIPS,root);
+  const one=await driveSubFolder(trip.name,trips);
+  return (_tripFolders[key]=await driveSubFolder(DRIVE_CERTS,one));
+}
+/* find one of our files by name, wherever it sits; null when Drive never saw it.
+   Reads stay name-based on purpose, so moving folders around can't break them. */
+async function driveFindByName(name,fields){
+  const q=encodeURIComponent("name='"+driveQ(name)+"' and trashed=false");
+  const j=await (await driveFetch('https://www.googleapis.com/drive/v3/files?spaces=drive&fields=files('+(fields||'id')+')&q='+q)).json();
   return (j.files&&j.files[0])||null;
 }
+async function driveMoveTo(file,parentId){
+  const from=(file.parents||[]).join(',');
+  await driveFetch('https://www.googleapis.com/drive/v3/files/'+file.id+'?addParents='+parentId
+    +(from?'&removeParents='+from:'')+'&fields=id',{method:'PATCH'});
+}
 /* ---- certificate photos ride along in the same folder ---- */
-async function driveCertUpload(name,blob){
+async function driveCertUpload(name,blob,trip){
   if(!driveOn||driveNeedsAuth||!blob) return;
   if(await driveFindByName(name)) return;                       // already up there
-  const parent=await driveFolder(), b='gemCert'+Math.random().toString(36).slice(2);
+  const parent=await driveCertFolder(trip||activeTrip()), b='gemCert'+Math.random().toString(36).slice(2);
   const head='--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'
     +JSON.stringify({name, parents:[parent]})+'\r\n--'+b+'\r\nContent-Type: '+(blob.type||'image/jpeg')+'\r\n\r\n';
   await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
@@ -1505,13 +1537,22 @@ async function driveCertDelete(name){
   const f=await driveFindByName(name); if(!f) return;
   await driveFetch('https://www.googleapis.com/drive/v3/files/'+f.id,{method:'DELETE'});
 }
-/* photos taken before he connected are still only local – push them up once */
+/* Put every photo where it belongs: upload the ones Drive never got, and move
+   the ones sitting in the wrong folder (older versions dropped them all in the
+   top-level folder, and renaming a trip renames its folder). */
 async function driveCertBackfill(){
   if(!driveOn||driveNeedsAuth) return;
-  const names=[];
-  (state.trips||[]).forEach(t=>(t.vendors||[]).forEach(v=>(v.rows||[]).forEach(r=>{ if(r.cert&&names.indexOf(r.cert)<0) names.push(r.cert); })));
-  for(const n of names){
-    try{ const b=await certImgGet(n); if(b) await driveCertUpload(n,b); }catch(e){}
+  const seen=Object.create(null);
+  for(const t of (state.trips||[])){
+    for(const v of (t.vendors||[])) for(const r of (v.rows||[])){
+      const n=r.cert; if(!n||seen[n]) continue; seen[n]=1;      // a photo belongs to one trip
+      try{
+        const f=await driveFindByName(n,'id,parents');
+        if(!f){ const b=await certImgGet(n); if(b) await driveCertUpload(n,b,t); continue; }
+        const parent=await driveCertFolder(t);
+        if((f.parents||[]).indexOf(parent)<0) await driveMoveTo(f,parent);
+      }catch(e){}
+    }
   }
 }
 async function driveCreateFile(){
@@ -1587,7 +1628,8 @@ async function connectDrive(){
 }
 async function disconnectDrive(){
   if(!confirm('לנתק את הסנכרון עם Google Drive? הנתונים יישארו במכשיר וגם בקובץ שב‑Drive.')) return;
-  driveOn=false; driveFileId=null; driveLink=''; driveFolderId=null; driveModified=null; driveToken=null; driveNeedsAuth=false;
+  driveOn=false; driveFileId=null; driveLink=''; driveFolderId=null; _tripFolders=Object.create(null);
+  driveModified=null; driveToken=null; driveNeedsAuth=false;
   await idbDel('drive'); await idbDel('driveTok').catch(()=>{}); renderDriveUI();
 }
 function renderDriveUI(status){
@@ -2051,7 +2093,9 @@ function buildGuide(){
 
   ${guideStep(17,'סנכרון בין המחשב לטלפון (לא חובה)',`
     <p>רוצים שאותם נתונים יהיו גם במחשב וגם בטלפון? בתפריט, בקטע <b>סנכרון בענן</b>, לוחצים <b>☁️ סנכרן עם Google Drive</b> ומתחברים לחשבון Google. עושים את זה <b>פעם אחת בכל מכשיר</b>, עם <b>אותו חשבון</b> – ומאז הכול מסתנכרן לבד.</p>
-    <p>ב‑Drive שלך נוצרת תיקייה אחת בשם <b>מעקב אבני חן</b>. בתוכה נמצא הקובץ <b>gemstones.json</b> עם כל הנתונים, וגם <b>תמונות התעודות</b> – כך שגם הן עוברות בין המכשירים. לא צריך לחפש כלום: אחרי החיבור מופיע בתפריט כפתור <b>📂 הצג ב‑Drive</b> שפותח את הקובץ ישירות.</p>
+    <p>ב‑Drive שלך נוצרת תיקייה אחת בשם <b>מעקב אבני חן</b>, והכול מסודר בתוכה לבד:</p>
+    <p style="direction:ltr;text-align:left;font-family:monospace;font-size:14px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px 12px">מעקב אבני חן/<br>&nbsp;&nbsp;gemstones.json<br>&nbsp;&nbsp;trips/<br>&nbsp;&nbsp;&nbsp;&nbsp;&lt;שם הנסיעה&gt;/<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;certificates/ &nbsp;← כל תמונות התעודות של אותה נסיעה</p>
+    <p>אין מה לעשות עם זה – האפליקציה בונה ומתחזקת את המבנה לבד, וגם מעבירה תמונות ישנות למקום הנכון. אם משנים שם לנסיעה, התמונות שלה עוברות לתיקייה עם השם החדש. לא צריך לחפש כלום: אחרי החיבור מופיע בתפריט כפתור <b>📂 הצג ב‑Drive</b> שפותח את הקובץ ישירות.</p>
     <p>האפליקציה רואה <b>רק</b> את מה שהיא עצמה יצרה – שום דבר אחר ב‑Drive שלך לא נגיש לה.</p>
     <p>תמונת תעודה שצולמה במחשב מופיעה בטלפון כשנכנסים לשורה שלה (היא נמשכת מ‑Drive בפעם הראשונה, ואז נשמרת גם במכשיר).</p>
     <p>אם ערכתם בשני מכשירים במקביל – נשמרת <b>הגרסה שנשמרה אחרונה</b>, והאפליקציה לא תדרוס נתונים חדשים יותר בישנים.</p>
