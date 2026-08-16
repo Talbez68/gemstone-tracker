@@ -19,6 +19,11 @@ combines everyone — like the old `Main` sheet.
 - **Print / PDF** — the 🖨️ button gives a clean printout (or "Save as PDF").
 - **Export to Excel** — ⬇️ writes a UTF-8 CSV (opens in Excel, Hebrew intact).
 - **Backup / Restore** — 💾 saves a full backup file of everything; ↺ restores it.
+- **Daily versions.** One snapshot per day, kept in the browser (14 days) *and* as
+  a dated file in Drive under `backups/` (30 days). **↩️ שחזר גרסה קודמת** lists
+  both, so a version saved on the laptop can be restored from the phone. A restore
+  is pushed to Drive, so every device follows it — sync alone only ever holds
+  "now", which is exactly why an accidental deletion needs this.
 
 ## Setup (one time)
 1. Put `gemstone-tracker.html` somewhere easy — e.g. his Desktop.
