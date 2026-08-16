@@ -1021,6 +1021,32 @@ function cellText(c,ss){
   return raw;
 }
 function isSold(v){ return /^(true|1|כן|v|✓|x|yes)$/i.test((v||'').trim()); }
+
+/* ---- one vendor = one code ----------------------------------------
+   An old sheet often mixes several codes (his "Gemesis" tab holds RM,
+   RG, DN, YS and MS). Each code becomes its own vendor tab, named
+   after the code; rows with no code stay under the sheet's own name. */
+/* "RM-01" / "rm 1" / "RM01" -> "RM";  a serial without a code -> "" */
+function serialCode(s){ const m=String(s||'').trim().match(/^([A-Za-z]{1,4})[\s\-\u2013\u2014_.\/]*\d/); return m?m[1].toUpperCase():''; }
+/* split a sheet's rows into one bucket per code, keeping the original order */
+function groupRowsByCode(rows){
+  const order=[], by=Object.create(null);
+  rows.forEach(r=>{ const c=serialCode(r.serial); if(!by[c]){ by[c]=[]; order.push(c); } by[c].push(r); });
+  const codes=order.filter(Boolean);
+  // a single code (or none at all) stays one vendor - rows with no serial belong to it
+  if(codes.length<2) return [{code:codes[0]||'', rows:rows.slice()}];
+  return order.map(c=>({code:c, rows:by[c]}));
+}
+/* sheets -> the vendors to create: one per code, merged when two sheets share a code */
+function planImportVendors(sheets){
+  const out=[], seen=Object.create(null);
+  sheets.forEach(s=>s.groups.forEach(g=>{
+    const key=g.code?'c:'+g.code:'s:'+s.sheet;            // uncoded rows never merge across sheets
+    if(seen[key]!==undefined){ out[seen[key]].rows=out[seen[key]].rows.concat(g.rows); return; }
+    seen[key]=out.length; out.push({name:g.code||s.sheet, code:g.code, rows:g.rows.slice()});
+  }));
+  return out;
+}
 async function importXLSX(ev){
   const file=ev.target.files[0]; ev.target.value=''; if(!file) return;
   if(!window.DecompressionStream){ alert('הדפדפן הזה לא תומך בייבוא. נסו ב‑Chrome או Edge מעודכנים.'); return; }
@@ -1035,7 +1061,7 @@ async function importXLSX(ev){
     const relMap={}; [...rels.getElementsByTagName('Relationship')].forEach(r=>relMap[r.getAttribute('Id')]=r.getAttribute('Target'));
     const sheets=[...wb.getElementsByTagName('sheet')].map(s=>({name:s.getAttribute('name'),
       rid:s.getAttribute('r:id')||s.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id')}));
-    const vendors=[];
+    const found=[];
     for(const sh of sheets){
       if(/^(main|סיכום|summary)/i.test(sh.name.trim())) continue;     // skip the summary sheet
       let tgt=relMap[sh.rid]; if(!tgt) continue;
@@ -1065,10 +1091,19 @@ async function importXLSX(ev){
         dataRows.push({serial,weight:weight&&parseFloat(weight)?weight:'',stones:stones&&parseFloat(stones)?stones:'',
           shape,cost:cost&&parseFloat(cost)?cost:'',cert:'',notes:notes==='0'?'':notes,sale:sale&&parseFloat(sale)?sale:'',sold:isSold(sold)});
       }
+      if(!dataRows.length) continue;                                   // empty tab -> no vendor tab
       const vname=VENDOR_HE[sh.name.trim().toLowerCase()]||sh.name.trim();
-      vendors.push({id:rid('v'),name:vname,rows:dataRows.length?dataRows:[blankRow()]});
+      found.push({sheet:vname, groups:groupRowsByCode(dataRows)});
     }
-    if(!vendors.length){ alert('לא נמצאו לשוניות ספקים מתאימות בקובץ.'); return; }
+    if(!found.length){ alert('לא נמצאו לשוניות ספקים עם נתונים בקובץ.'); return; }
+
+    // one vendor tab per code, named after the code (RM, RG, DN ...)
+    const vendors=planImportVendors(found).map(g=>{
+      const v={id:rid('v'), name:g.name, rows:g.rows};
+      if(/^[A-Z]{2}$/.test(g.code)) v.code=g.code;
+      return v;
+    });
+
     const base=file.name.replace(/\.xlsx$/i,'');
     const name=prompt('שם הנסיעה המיובאת:', base||'נסיעה מיובאת'); if(name===null) return;
     const t={id:rid('t'),name:name.trim()||base||'נסיעה מיובאת',date:today(),activeId:vendors[0].id,vendors};
@@ -1823,6 +1858,8 @@ function buildGuide(){
 
   ${guideStep(14,'ייבוא מאקסל ישן',`
     <p>יש נסיעות ישנות בקובץ אקסל של התבנית הישנה? <b>📥 ייבוא מאקסל ישן</b> טוען קובץ <b>.xlsx</b> ומוסיף אותו כ<b>נסיעה חדשה</b> – בלי לדרוס שום דבר קיים.</p>
+    <p>הייבוא מסדר את הנתונים <b>לפי הקוד שבסריה</b>, לא לפי הלשונית שבאקסל. אם בלשונית אחת היו כמה קודים (למשל RM, RG ו־ MS באותה לשונית) – כל קוד מקבל <b>לשונית ספק משלו</b>, ששמה הוא הקוד עצמו. אפשר לשנות את השם אחרי הייבוא ב־✏️ שם.</p>
+    <p>לשוניות ריקות באקסל פשוט לא מיובאות – לא נוצרות להן לשוניות ספק ריקות.</p>
   `,null)}
 
   ${guideStep(15,'גיבוי ושחזור ידני',`
