@@ -251,10 +251,10 @@
   .menu-item.active{background:var(--accent); color:#fff; border-color:var(--accent)}
   .menu-item.guide{background:#fff7e6; border-color:var(--gold); color:#8a6a16}
   .menu-item.guide.active{background:var(--gold); color:#fff}
-  #sideMenu #driveUI, #sideMenu #backupUI{display:flex; flex-direction:column; align-items:stretch; gap:8px}
-  #sideMenu #driveUI .sync-chip, #sideMenu #backupUI .sync-chip{justify-content:center; background:var(--auto); color:var(--accent-d); border:1px solid var(--line)}
-  #sideMenu #driveUI .btn, #sideMenu #backupUI .btn{justify-content:center; width:100%; background:var(--soft); color:var(--accent-d); border:1px solid var(--line); font-size:15px}
-  #sideMenu #driveUI .btn:hover, #sideMenu #backupUI .btn:hover{border-color:var(--accent)}
+  #sideMenu #driveUI{display:flex; flex-direction:column; align-items:stretch; gap:8px}
+  #sideMenu #driveUI .sync-chip{justify-content:center; background:var(--auto); color:var(--accent-d); border:1px solid var(--line)}
+  #sideMenu #driveUI .btn{justify-content:center; width:100%; background:var(--soft); color:var(--accent-d); border:1px solid var(--line); font-size:15px}
+  #sideMenu #driveUI .btn:hover{border-color:var(--accent)}
   /* restore-a-version overlay */
   .rst-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:80; align-items:center; justify-content:center; padding:18px}
   .rst-box{background:#fff; border-radius:16px; padding:22px 24px; max-width:520px; width:100%; max-height:84vh; overflow:auto; box-shadow:0 12px 40px rgba(0,0,0,.3)}
@@ -428,7 +428,6 @@
     <div class="menu-section">
       <div class="menu-title">גיבוי אוטומטי</div>
       <button class="menu-item" onclick="openRestore()" title="שחזור גרסה קודמת של הנתונים. האפליקציה שומרת אוטומטית גרסה ליום (בתוך הדפדפן), כדי שאפשר יהיה לחזור אחורה אם נמחק משהו בטעות.">↩️ שחזר גרסה קודמת</button>
-      <span id="backupUI"></span>
     </div>
     <div class="menu-section">
       <div class="menu-title">סנכרון בענן</div>
@@ -1170,26 +1169,18 @@ async function compressImage(file){
   const blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',CERT_QUALITY));
   return blob||file;
 }
-async function certFolderHandle(create){
-  if(!backupDir||backupNeedsReconnect) return null;
-  try{ return await backupDir.getDirectoryHandle('certificates',{create:!!create}); }catch(e){ return null; }
-}
 async function saveCertImage(file){
   const blob=await compressImage(file).catch(()=>file);
   const name='cert_'+rid('').slice(0,10)+'.jpg';
   await certImgPut(name,blob);                            // local cache – always
-  const dir=await certFolderHandle(true);                 // + drive copy when a folder is connected
-  if(dir){ try{ const fh=await dir.getFileHandle(name,{create:true}); const wr=await fh.createWritable(); await wr.write(blob); await wr.close(); }catch(e){} }
-  driveCertUpload(name,blob,activeTrip()).catch(()=>{});  // + Google Drive, so his phone gets it too
+  driveCertUpload(name,blob,activeTrip()).catch(()=>{});  // + Google Drive, so every device gets it
   return name;
 }
 async function certBlob(name){
   if(!name) return null;
   let b=await certImgGet(name).catch(()=>null);           // local first
   if(b) return b;
-  const dir=await certFolderHandle(false);                // else pull from the drive folder (e.g. another device)
-  if(dir){ try{ const fh=await dir.getFileHandle(name); b=await fh.getFile(); if(b){ certImgPut(name,b).catch(()=>{}); return b; } }catch(e){} }
-  b=await driveCertDownload(name).catch(()=>null);        // else fetch it from Google Drive (the phone's route)
+  b=await driveCertDownload(name).catch(()=>null);        // else fetch it from Google Drive (another device took it)
   if(b){ certImgPut(name,b).catch(()=>{}); return b; }
   return null;
 }
@@ -1203,8 +1194,6 @@ async function deleteCertImage(name){
   if(!name) return;
   if(_certURLs[name]){ URL.revokeObjectURL(_certURLs[name]); delete _certURLs[name]; }
   await certImgDel(name).catch(()=>{});
-  const dir=await certFolderHandle(false);
-  if(dir){ try{ await dir.removeEntry(name); }catch(e){} }
   driveCertDelete(name).catch(()=>{});
 }
 
@@ -1313,7 +1302,7 @@ async function snapDel(day){ const db=await idbDB(); return new Promise((res,rej
    A) rolling daily snapshots in the browser (undo for mistakes)
    B) timestamped backups into a chosen Drive/OneDrive folder (off-device)
    ============================================================ */
-const SNAP_KEEP=14, BACKUP_KEEP=30;
+const SNAP_KEEP=14, DRIVE_BACKUP_KEEP=30;
 let snapTimer=null;
 function scheduleSnapshot(){ clearTimeout(snapTimer); snapTimer=setTimeout(saveSnapshot,4000); }
 async function saveSnapshot(){
@@ -1323,20 +1312,31 @@ async function saveSnapshot(){
     if(all.length>SNAP_KEEP){ all.sort((a,b)=>a.day.localeCompare(b.day));
       for(const r of all.slice(0,all.length-SNAP_KEEP)) await snapDel(r.day); }
   }catch(e){}
-  scheduleBackupWrite();   // also push an off-device dated backup, if a folder is connected
+  driveBackupToday().catch(()=>{});   // also keep a dated copy in Drive, once a day
 }
 
 /* ----- in-app restore-a-previous-version UI ----- */
 function rowsIn(d){ let n=0; (d&&d.trips||[]).forEach(t=>(t.vendors||[]).forEach(v=>n+=(v.rows||[]).filter(hasData).length)); return n; }
+/* every day we can restore: this device's own snapshots, plus the dated
+   backups in Drive – which is how the phone gets a history at all */
+async function restorableDays(){
+  const byDay=Object.create(null);
+  for(const r of await snapAll()) byDay[r.day]={day:r.day, local:r, drive:null};
+  let cloud=[]; try{ cloud=await driveBackupList(); }catch(e){}
+  for(const b of cloud){ (byDay[b.day]=byDay[b.day]||{day:b.day, local:null, drive:null}).drive=b; }
+  return Object.values(byDay).sort((a,b)=>b.day.localeCompare(a.day));
+}
 async function openRestore(){
   closeDrawer();
-  const all=(await snapAll()).sort((a,b)=>b.day.localeCompare(a.day));
+  const all=await restorableDays();
   let html='<div class="rst-box"><h2>↩️ שחזור גרסה קודמת</h2>';
   if(!all.length){ html+='<p>אין עדיין גרסאות שמורות. הן נוצרות אוטומטית תוך כדי העבודה (גרסה אחת ליום).</p>'; }
   else{
-    html+='<p>בחר תאריך לשחזור. הנתונים הנוכחיים יוחלפו (אבל גם הם נשמרים כגרסה, אז אפשר לחזור).</p><div class="rst-list">';
-    for(const r of all){ const d=r.data||{};
-      html+=`<div class="rst-item"><div><b>${r.day}</b> <span class="rst-meta">${(d.trips||[]).length} נסיעות · ${rowsIn(d)} שורות</span></div>`
+    html+='<p>בחר תאריך לשחזור. הנתונים הנוכחיים יוחלפו (אבל גם הם נשמרים כגרסה, אז אפשר לחזור)'
+      +(driveOn?' – והשחזור ייכנס לתוקף <b>בכל המכשירים</b> המחוברים לאותו חשבון':'')+'.</p><div class="rst-list">';
+    for(const r of all){ const d=(r.local&&r.local.data)||null;
+      const meta = d ? `${(d.trips||[]).length} נסיעות · ${rowsIn(d)} שורות` : 'מהגיבוי ב‑Drive';
+      html+=`<div class="rst-item"><div><b>${r.day}</b> <span class="rst-meta">${meta}</span></div>`
         +`<button class="btn btn-sm btn-add" onclick="restoreSnapshot('${r.day}')">שחזר</button></div>`;
     }
     html+='</div>';
@@ -1347,60 +1347,21 @@ async function openRestore(){
 }
 function closeRestore(){ const ov=$('rstOverlay'); if(ov) ov.style.display='none'; }
 async function restoreSnapshot(day){
-  const all=await snapAll(); const r=all.find(x=>x.day===day); if(!r) return;
-  if(!confirm('לשחזר את הנתונים מהתאריך '+day+'?\nהנתונים הנוכחיים יוחלפו.')) return;
-  state=JSON.parse(JSON.stringify(r.data)); if(!state.activeTripId) state.activeTripId=state.trips[0]?.id;
-  save(); render(); closeRestore(); showView('tracker'); alert('שוחזרה הגרסה מ‑'+day+' ✓');
+  const all=await restorableDays(); const r=all.find(x=>x.day===day); if(!r) return;
+  if(!confirm('לשחזר את הנתונים מהתאריך '+day+'?\nהנתונים הנוכחיים יוחלפו'
+    +(driveOn?' – בכל המכשירים המחוברים לחשבון.':'.'))) return;
+  let data=r.local&&r.local.data;
+  if(!data){ try{ data=await driveBackupRead(r.drive.id); }catch(e){ alert('לא ניתן לקרוא את הגיבוי מ‑Drive.'); return; } }
+  if(!data||!data.trips) return;
+  state=migrateRows(JSON.parse(JSON.stringify(data)));
+  if(!state.activeTripId) state.activeTripId=state.trips[0]?.id;
+  // save() stamps savedAt with now, so this deliberately wins over what is in
+  // Drive – the other device pulls the restored data instead of undoing it
+  save(); render(); closeRestore(); showView('tracker');
+  if(driveOn){ try{ await drivePush(true); }catch(e){} }
+  alert('שוחזרה הגרסה מ‑'+day+' ✓'+(driveOn?'\nהשחזור נשלח ל‑Drive ויופיע גם במכשירים האחרים.':''));
 }
 
-/* ----- off-device backup folder (Layer B) ----- */
-let backupDir=null, backupNeedsReconnect=false, backupWriteTimer=null, backupBusy=false, lastBackupDay=null;
-function scheduleBackupWrite(){ if(!backupDir||backupNeedsReconnect) return; clearTimeout(backupWriteTimer); backupWriteTimer=setTimeout(writeBackupFile,2500); }
-async function writeBackupFile(){
-  if(!backupDir||backupBusy) return; backupBusy=true;
-  try{
-    const fh=await backupDir.getFileHandle('gemstones_'+today()+'.json',{create:true});
-    const w=await fh.createWritable(); await w.write(JSON.stringify(state,null,2)); await w.close();
-    lastBackupDay=today();
-    const files=[]; for await(const [n,h] of backupDir.entries()){ if(h.kind==='file'&&/^gemstones_\d{4}-\d{2}-\d{2}\.json$/.test(n)) files.push(n); }
-    files.sort(); for(const n of files.slice(0,Math.max(0,files.length-BACKUP_KEEP))) await backupDir.removeEntry(n).catch(()=>{});
-    renderBackupUI('ok');
-  }catch(e){ renderBackupUI('error'); } finally{ backupBusy=false; }
-}
-async function connectBackupFolder(){
-  if(!window.showDirectoryPicker){ alert('הדפדפן הזה לא תומך בבחירת תיקייה. נסו ב‑Chrome או Edge.'); return; }
-  try{
-    backupDir=await window.showDirectoryPicker({mode:'readwrite',id:'gem-backup'});
-    await idbSet('backupDir',backupDir); backupNeedsReconnect=false;
-    await writeBackupFile();
-    alert('מצוין! מעכשיו נשמר גיבוי אוטומטי מתוארך לתיקייה הזו (גרסה ליום). מומלץ לבחור תיקייה בתוך OneDrive / Google Drive כדי שהגיבוי יישמר גם בענן.');
-  }catch(e){ if(e&&e.name!=='AbortError') alert('לא ניתן לחבר את תיקיית הגיבוי.'); }
-}
-async function disconnectBackupFolder(){
-  if(!confirm('לנתק את תיקיית הגיבוי האוטומטי? הגיבויים שכבר נשמרו יישארו בתיקייה.')) return;
-  backupDir=null; backupNeedsReconnect=false; await idbDel('backupDir'); renderBackupUI();
-}
-async function reconnectBackupFolder(){
-  if(!backupDir) return;
-  try{ const p=await backupDir.requestPermission({mode:'readwrite'});
-    if(p==='granted'){ backupNeedsReconnect=false; await writeBackupFile(); } }catch(e){}
-}
-function renderBackupUI(status){
-  const el=$('backupUI'); if(!el) return; el.innerHTML='';
-  if(!window.showDirectoryPicker){
-    el.innerHTML='<span class="sync-chip" title="זמין ב‑Chrome/Edge בלבד">📁 לא נתמך בדפדפן זה</span>'; return;
-  }
-  if(backupDir && !backupNeedsReconnect){
-    const nm=backupDir.name||'תיקייה';
-    el.innerHTML=`<span class="sync-chip">${status==='error'?'⚠️':'🗂️'} גיבוי אוטומטי: <b>${escapeHtml(nm)}</b></span>`;
-    const d=document.createElement('button'); d.className='btn btn-ghost btn-sm'; d.textContent='נתק'; d.onclick=disconnectBackupFolder; el.appendChild(d);
-  }else if(backupDir && backupNeedsReconnect){
-    const b=document.createElement('button'); b.className='btn btn-amber'; b.textContent='🗂️ אשר תיקיית גיבוי'; b.title='אישור מחדש של ההרשאה לתיקיית הגיבוי.'; b.onclick=reconnectBackupFolder; el.appendChild(b);
-  }else{
-    const b=document.createElement('button'); b.className='btn btn-ghost'; b.textContent='🗂️ חבר תיקיית גיבוי';
-    b.title='בחירת תיקייה (מומלץ בתוך OneDrive/Drive) שאליה יישמר גיבוי אוטומטי מתוארך, גרסה אחת ליום.'; b.onclick=connectBackupFolder; el.appendChild(b);
-  }
-}
 
 
 /* ============================================================
@@ -1417,7 +1378,7 @@ const DRIVE_CLIENT_ID='733539090151-tas4ifrkqc5j266abfj41gtckarr09kq.apps.google
 const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
 const DRIVE_FILENAME='gemstones.json';
 const DRIVE_FOLDER='מעקב אבני חן';
-const DRIVE_TRIPS='trips', DRIVE_CERTS='certificates';
+const DRIVE_TRIPS='trips', DRIVE_CERTS='certificates', DRIVE_BACKUPS='backups';
 /* a trip name is his free text – it has to survive being put inside a Drive query */
 const driveQ=n=>String(n).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 /* OAuth needs a real origin – the downloaded file:// copy can't sync */
@@ -1507,6 +1468,46 @@ async function driveCertFolder(trip){
   const trips=await driveSubFolder(DRIVE_TRIPS,root);
   const one=await driveSubFolder(trip.name,trips);
   return (_tripFolders[key]=await driveSubFolder(DRIVE_CERTS,one));
+}
+/* ---- dated backups: מעקב אבני חן/backups/gemstones_YYYY-MM-DD.json ----
+   Sync keeps exactly one copy – "now". These are the versioned history, so a
+   mistake that syncs to both devices is still recoverable. */
+let driveBackupDay=null;
+async function driveBackupsFolder(){ return driveSubFolder(DRIVE_BACKUPS, await driveFolder()); }
+async function driveBackupList(){
+  if(!driveOn||driveNeedsAuth) return [];
+  const parent=await driveBackupsFolder();
+  const q=encodeURIComponent("'"+parent+"' in parents and trashed=false");
+  const j=await (await driveFetch('https://www.googleapis.com/drive/v3/files?spaces=drive&fields=files(id,name)&pageSize=100&q='+q)).json();
+  return (j.files||[]).filter(f=>/^gemstones_\d{4}-\d{2}-\d{2}\.json$/.test(f.name||''))
+    .map(f=>({id:f.id, day:f.name.slice(10,20)})).sort((a,b)=>b.day.localeCompare(a.day));
+}
+async function driveBackupRead(id){
+  const txt=await (await driveFetch('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media')).text();
+  const j=JSON.parse(txt); return j&&j.state?j.state:j;
+}
+/* one write per day per device – the day's file is overwritten, not appended to */
+async function driveBackupToday(){
+  if(!driveOn||driveNeedsAuth) return;
+  const day=today(); if(driveBackupDay===day) return;
+  const name='gemstones_'+day+'.json';
+  const existing=await driveFindByName(name,'id');
+  if(existing){
+    await driveFetch('https://www.googleapis.com/upload/drive/v3/files/'+existing.id+'?uploadType=media&fields=id',
+      {method:'PATCH', headers:{'Content-Type':'application/json; charset=UTF-8'}, body:drivePayload()});
+  }else{
+    const parent=await driveBackupsFolder(), b='gemBak'+Math.random().toString(36).slice(2);
+    const body='--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'
+      +JSON.stringify({name, parents:[parent]})
+      +'\r\n--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+drivePayload()+'\r\n--'+b+'--';
+    await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+      {method:'POST', headers:{'Content-Type':'multipart/related; boundary='+b}, body});
+  }
+  driveBackupDay=day;
+  const all=await driveBackupList();                       // newest first – drop anything past the keep window
+  for(const old of all.slice(DRIVE_BACKUP_KEEP)){
+    try{ await driveFetch('https://www.googleapis.com/drive/v3/files/'+old.id,{method:'DELETE'}); }catch(e){}
+  }
 }
 /* find one of our files by name, wherever it sits; null when Drive never saw it.
    Reads stay name-based on purpose, so moving folders around can't break them. */
@@ -1703,13 +1704,7 @@ setInterval(()=>{
 async function initSync(){
   initDrive();
   idbDel('syncHandle').catch(()=>{});          // drop the retired file-sync handle
-  // restore the off-device backup folder handle, if any
-  try{
-    backupDir=await idbGet('backupDir');
-    if(backupDir){ const p=await backupDir.queryPermission({mode:'readwrite'});
-      backupNeedsReconnect = p!=='granted'; }
-  }catch(e){ backupDir=null; }
-  renderBackupUI();
+  idbDel('backupDir').catch(()=>{});            // drop the retired backup-folder handle
 }
 
 /* ============================================================
@@ -2096,13 +2091,12 @@ function buildGuide(){
     <p>כדאי ללחוץ גיבוי מדי פעם, ובמיוחד לפני שמוחקים נסיעה או ספק.</p>
   `,null,{tip:'לפני שאני מוחק משהו – קודם גיבוי. שנייה אחת, והראש שקט.'})}
 
-  ${guideStep(16,'גיבוי אוטומטי – שתי רשתות ביטחון',`
-    <p>בקטע <b>גיבוי אוטומטי</b> שבתפריט יש שתי הגנות שעובדות לבד:</p>
-    <ul>
-      <li><b>↩️ שחזר גרסה קודמת</b> – האפליקציה שומרת לבד <b>גרסה אחת ליום</b> (בתוך המחשב). אם נמחק משהו בטעות, פותחים את החלון הזה ובוחרים תאריך לחזור אליו. זו "כפתור אחורה" לימים שעברו.</li>
-      <li><b>🗂️ חבר תיקיית גיבוי</b> – בוחרים <b>פעם אחת</b> תיקייה (הכי טוב בתוך OneDrive / Google Drive), ומעכשיו נשמר אליה אוטומטית קובץ גיבוי מתוארך בכל יום. ככה הנתונים מוגנים גם אם מנקים את הדפדפן או עוברים למחשב חדש.</li>
-    </ul>
-  `,'backup',{tip:'חיברתי פעם אחת תיקייה ב‑Drive – ומאז יש לי גיבוי בענן בלי לחשוב על זה. רשת ביטחון אמיתית.'})}
+  ${guideStep(16,'גיבוי אוטומטי – ↩️ שחזר גרסה קודמת',`
+    <p>הסנכרון שומר תמיד <b>עותק אחד – המצב הנוכחי</b>. לכן אם נמחק משהו בטעות, המחיקה מגיעה גם לטלפון תוך שניות. בשביל זה יש את <b>↩️ שחזר גרסה קודמת</b>.</p>
+    <p>האפליקציה שומרת לבד <b>גרסה אחת ליום</b> – גם במכשיר עצמו וגם כקובץ מתוארך ב‑Drive (בתיקייה <b>backups</b>, חודש אחורה). פותחים את החלון, בוחרים תאריך – וזהו.</p>
+    <p>כשמחוברים ל‑Google Drive, השחזור <b>חל על כל המכשירים</b>: מה שמשחזרים במחשב מגיע גם לטלפון. וגם הגרסאות שנשמרו במכשיר אחד זמינות לשחזור מהמכשיר השני.</p>
+    <p>לא נדרש שום חיבור או הגדרה – זה פשוט עובד ברקע.</p>
+  `,'backup',{tip:'טעיתי ומחקתי ספק שלם. שתי לחיצות – והכול חזר. גם בטלפון.'})}
 
   ${guideStep(17,'סנכרון בין המחשב לטלפון (לא חובה)',`
     <p>רוצים שאותם נתונים יהיו גם במחשב וגם בטלפון? בתפריט, בקטע <b>סנכרון בענן</b>, לוחצים <b>☁️ סנכרן עם Google Drive</b> ומתחברים לחשבון Google. עושים את זה <b>פעם אחת בכל מכשיר</b>, עם <b>אותו חשבון</b> – ומאז הכול מסתנכרן לבד.</p>

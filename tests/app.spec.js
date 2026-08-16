@@ -150,13 +150,14 @@ async function stubDrive(page, seedRemote, seedCerts) {
           keep();
           return json({ id });
         }
+        // a query may name a file, or just ask for everything inside a folder
         const q = decodeURIComponent(u), name = qName(u);
         const parent = (q.match(/'([^']+)' in parents/) || [])[1];
         const wantFolder = q.includes("mimeType='application/vnd.google-apps.folder'");
-        const hit = Object.values(D.files).find((f) => (f.name || '') === name
+        const hits = Object.values(D.files).filter((f) => (name == null || (f.name || '') === name)
           && (!parent || (f.parents || []).includes(parent))
           && (!wantFolder || f.mimeType === 'application/vnd.google-apps.folder'));
-        return json({ files: hit ? [{ id: hit.id, modifiedTime: hit.modifiedTime, webViewLink: hit.webViewLink, parents: hit.parents || [] }] : [] });
+        return json({ files: hits.map((f) => ({ id: f.id, name: f.name, modifiedTime: f.modifiedTime, webViewLink: f.webViewLink, parents: f.parents || [] })) });
       }
       const idm = u.match(/\/drive\/v3\/files\/([^?]+)/);
       if (idm) {
@@ -617,6 +618,55 @@ test.describe('Google Drive sync', () => {
     await page.locator('.cert-cell input[type=file]').first()
       .setInputFiles({ name: 'gia.png', mimeType: 'image/png', buffer: Buffer.from(PNG_B64, 'base64') });
     await expect.poll(async () => certFolderId(page, "Dad's trip")).not.toBeNull();
+  });
+
+  test('a dated backup is written into the Drive backups folder', async ({ page }) => {
+    await seed(page);
+    await stubDrive(page, null);
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    await page.evaluate(() => driveBackupToday());
+
+    const backups = await page.evaluate(() => {
+      const all = Object.values(window.__drive.files);
+      const child = (name, parent) => all.find((f) => f.name === name && (parent === undefined || (f.parents || []).includes(parent)));
+      const root = child('מעקב אבני חן'), folder = child('backups', root.id);
+      return all.filter((f) => (f.parents || []).includes(folder.id)).map((f) => f.name);
+    });
+    expect(backups).toHaveLength(1);
+    expect(backups[0]).toMatch(/^gemstones_\d{4}-\d{2}-\d{2}\.json$/);
+  });
+
+  test('restoring a Drive backup pushes it, so the other device follows', async ({ page }) => {
+    await seed(page);
+    await stubDrive(page, null);
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+
+    // a backup from an earlier day, holding a vendor the current data no longer has
+    await page.evaluate(async () => {
+      const old = { app: 'gemstone-tracker', savedAt: '2026-01-02T00:00:00.000Z',
+        state: { currency: '$', savedAt: '2026-01-02T00:00:00.000Z', activeTripId: 't1', trips: [{ id: 't1', name: 'Old trip', date: '2026-01-02', activeId: 'v1',
+          vendors: [{ id: 'v1', name: 'ספק שנמחק', code: 'AB', rows: [{ serial: 'AB-01', weight: '9', stones: '1', shape: '', cost: '', cert: '', notes: '', sale: '', sold: false }] }] }] } };
+      const all = Object.values(window.__drive.files);
+      const root = all.find((f) => f.name === 'מעקב אבני חן');
+      const folder = all.find((f) => f.name === 'backups' && (f.parents || []).includes(root.id))
+        || (window.__drive.files['backups@' + root.id] = { id: 'bak', name: 'backups', parents: [root.id], mimeType: 'application/vnd.google-apps.folder' });
+      window.__drive.files['gemstones_2026-01-02.json@' + folder.id] =
+        { id: 'b1', name: 'gemstones_2026-01-02.json', parents: [folder.id], modifiedTime: 't0', body: JSON.stringify(old) };
+    });
+
+    // that day shows up in the restore list even though this device never saw it
+    const days = await page.evaluate(async () => (await restorableDays()).map((r) => r.day));
+    expect(days).toContain('2026-01-02');
+    await page.evaluate(() => restoreSnapshot('2026-01-02'));
+
+    // restored locally...
+    expect(await page.evaluate(() => state.trips[0].vendors[0].name)).toBe('ספק שנמחק');
+    // ...and pushed, so the other device pulls the restore rather than undoing it
+    await expect.poll(async () => (await driveBody(page)).state.trips[0].vendors[0].name).toBe('ספק שנמחק');
   });
 
   test('a local edit is pushed to Drive automatically', async ({ page }) => {
