@@ -1437,7 +1437,9 @@ async function driveAuth(interactive){
     driveClient.callback=r=>{
       if(r&&r.access_token){
         driveToken=r.access_token; driveTokenExp=Date.now()+((r.expires_in||3600)-60)*1000;
-        driveNeedsAuth=false; res(r.access_token);
+        driveNeedsAuth=false;
+        idbSet('driveTok',{t:driveToken, e:driveTokenExp}).catch(()=>{});   // survive a refresh
+        res(r.access_token);
       }else rej(new Error((r&&r.error)||'auth-failed'));
     };
     driveClient.error_callback=e=>rej(new Error((e&&e.type)||'auth-failed'));
@@ -1448,7 +1450,7 @@ async function driveFetch(url,opts,retry){
   if(!driveToken||Date.now()>driveTokenExp) await driveAuth(false);
   const o=Object.assign({},opts); o.headers=Object.assign({Authorization:'Bearer '+driveToken},(opts&&opts.headers)||{});
   const r=await fetch(url,o);
-  if(r.status===401&&!retry){ driveToken=null; return driveFetch(url,opts,true); }
+  if(r.status===401&&!retry){ driveToken=null; idbDel('driveTok').catch(()=>{}); return driveFetch(url,opts,true); }
   if(!r.ok) throw new Error('drive-'+r.status);
   return r;
 }
@@ -1586,7 +1588,7 @@ async function connectDrive(){
 async function disconnectDrive(){
   if(!confirm('לנתק את הסנכרון עם Google Drive? הנתונים יישארו במכשיר וגם בקובץ שב‑Drive.')) return;
   driveOn=false; driveFileId=null; driveLink=''; driveFolderId=null; driveModified=null; driveToken=null; driveNeedsAuth=false;
-  await idbDel('drive'); renderDriveUI();
+  await idbDel('drive'); await idbDel('driveTok').catch(()=>{}); renderDriveUI();
 }
 function renderDriveUI(status){
   const el=$('driveUI'); if(!el) return; el.innerHTML='';
@@ -1620,8 +1622,14 @@ async function initDrive(){
   if(!saved||!saved.fileId) return;
   driveFileId=saved.fileId; driveLink=saved.link||('https://drive.google.com/file/d/'+saved.fileId+'/view');
   driveOn=true; renderDriveUI('synced');
-  try{ await driveAuth(false); await drivePull(true); renderDriveUI('synced'); }   // silent renewal
-  catch(e){ driveNeedsAuth=true; renderDriveUI(); }
+  // Reuse the token from last time if it is still alive. Asking Google for a new
+  // one opens a popup, so doing it on every refresh looked like being logged out.
+  try{ const tk=await idbGet('driveTok');
+    if(tk&&tk.t&&tk.e>Date.now()){ driveToken=tk.t; driveTokenExp=tk.e; } }catch(e){}
+  try{ if(!driveToken) await driveAuth(false); }
+  catch(e){ driveToken=null; driveNeedsAuth=true; renderDriveUI(); return; }
+  // a pull that fails is just a bad moment on the network – stay connected
+  try{ await drivePull(true); renderDriveUI('synced'); }catch(e){ renderDriveUI('error'); }
 }
 /* pick up the other device's edits when he comes back to the app, and flush ours when he leaves */
 document.addEventListener('visibilitychange',()=>{

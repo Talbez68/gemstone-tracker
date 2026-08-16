@@ -102,14 +102,21 @@ async function stubDrive(page, seedRemote, seedCerts) {
   await page.addInitScript(([remote, certs]) => {
     window.google = { accounts: { oauth2: { initTokenClient: (cfg) => ({
       callback: cfg.callback,
-      requestAccessToken() { const cb = this.callback; setTimeout(() => cb({ access_token: 'tok', expires_in: 3600 }), 0); },
+      requestAccessToken() { window.__drive.authCalls++; const cb = this.callback; setTimeout(() => cb({ access_token: 'tok', expires_in: 3600 }), 0); },
     }) } } };
 
-    // files keyed by name, the way Drive is queried here
-    const D = window.__drive = { files: {}, n: 1, uploads: 0, deleted: [] };
-    const stamp = () => 't' + D.n++;
-    if (remote) D.files['gemstones.json'] = { id: 'file1', modifiedTime: 't0', body: JSON.stringify(remote), webViewLink: 'https://drive.google.com/file/d/file1/view' };
-    Object.entries(certs || {}).forEach(([n, body], i) => { D.files[n] = { id: 'cert' + i, modifiedTime: 't0', body }; });
+    // files keyed by name, the way Drive is queried here. Kept in sessionStorage so
+    // the fake Drive survives a page reload, the way the real one would.
+    const kept = JSON.parse(sessionStorage.getItem('__fakeDrive') || 'null');
+    const D = window.__drive = kept || { files: {}, n: 1, uploads: 0, deleted: [] };
+    D.authCalls = 0;                                  // per page load, not persisted
+    const keep = () => sessionStorage.setItem('__fakeDrive', JSON.stringify({ files: D.files, n: D.n, uploads: D.uploads, deleted: D.deleted }));
+    const stamp = () => { const t = 't' + D.n++; keep(); return t; };
+    if (!kept) {
+      if (remote) D.files['gemstones.json'] = { id: 'file1', modifiedTime: 't0', body: JSON.stringify(remote), webViewLink: 'https://drive.google.com/file/d/file1/view' };
+      Object.entries(certs || {}).forEach(([n, body], i) => { D.files[n] = { id: 'cert' + i, modifiedTime: 't0', body }; });
+      keep();
+    }
     const byId = (id) => Object.values(D.files).find((f) => f.id === id);
     const qName = (u) => { const m = decodeURIComponent(u).match(/name='([^']+)'/); return m && m[1]; };
 
@@ -125,18 +132,18 @@ async function stubDrive(page, seedRemote, seedCerts) {
         const meta = JSON.parse(body.slice(body.indexOf('\r\n\r\n') + 4, body.indexOf('\r\n--', body.indexOf('\r\n\r\n'))));
         D.files[meta.name] = { id: 'id' + D.n, modifiedTime: stamp(), parent: (meta.parents || [])[0],
           body: body.slice(body.lastIndexOf('\r\n\r\n') + 4, body.lastIndexOf('\r\n--')) };
-        D.uploads++;
+        D.uploads++; keep();
         return json({ id: D.files[meta.name].id, modifiedTime: D.files[meta.name].modifiedTime, webViewLink: 'https://drive.google.com/file/d/' + D.files[meta.name].id + '/view' });
       }
       if (/\/upload\/drive\/v3\/files\//.test(u)) {                     // update (raw media)
         const f = byId(u.match(/files\/([^?]+)/)[1]);
-        f.body = await raw(); f.modifiedTime = stamp(); D.uploads++;
+        f.body = await raw(); f.modifiedTime = stamp(); D.uploads++; keep();
         return json({ id: f.id, modifiedTime: f.modifiedTime });
       }
       if (/\/drive\/v3\/files\?/.test(u)) {
         if ((opts.method || 'GET') === 'POST') {                          // create a folder
           const meta = JSON.parse(await raw());
-          D.files[meta.name] = { id: 'folder1', modifiedTime: stamp(), mimeType: meta.mimeType };
+          D.files[meta.name] = { id: 'folder1', modifiedTime: stamp(), mimeType: meta.mimeType }; keep();
           return json({ id: 'folder1' });
         }
         const name = qName(u), f = name && D.files[name];
@@ -145,7 +152,7 @@ async function stubDrive(page, seedRemote, seedCerts) {
       const idm = u.match(/\/drive\/v3\/files\/([^?]+)/);
       if (idm) {
         const f = byId(idm[1]);
-        if ((opts.method || 'GET') === 'DELETE') { D.deleted.push(idm[1]); delete D.files[Object.keys(D.files).find((k) => D.files[k] === f)]; return json({}); }
+        if ((opts.method || 'GET') === 'DELETE') { D.deleted.push(idm[1]); delete D.files[Object.keys(D.files).find((k) => D.files[k] === f)]; keep(); return json({}); }
         if (u.includes('alt=media')) return new Response(f.body, { status: 200 });
         return json({ modifiedTime: f.modifiedTime });
       }
@@ -479,6 +486,22 @@ test.describe('Google Drive sync', () => {
     // the other device finishes uploading a moment later
     await page.evaluate(() => { window.__drive.files['cert_late01.jpg'] = { id: 'late1', modifiedTime: 't9', body: 'PRETEND-JPEG-BYTES' }; });
     await expect(page.locator('img.cert-thumb').first()).toBeVisible({ timeout: 15000 });
+  });
+
+  test('a refresh reuses the saved token instead of asking Google again', async ({ page }) => {
+    await seed(page);
+    await stubDrive(page, null);
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    expect(await page.evaluate(() => window.__drive.authCalls)).toBe(1);
+
+    await open(page);                                     // reload the page
+    await expect.poll(async () => page.evaluate(() => driveOn)).toBe(true);
+    await expect.poll(async () => page.evaluate(() => !!driveToken)).toBe(true);
+    // no second sign-in popup: the stored token was still valid
+    expect(await page.evaluate(() => window.__drive.authCalls)).toBe(0);
+    expect(await page.evaluate(() => driveNeedsAuth)).toBe(false);
   });
 
   test('a local edit is pushed to Drive automatically', async ({ page }) => {
