@@ -269,6 +269,29 @@ test.describe('Gemstone tracker', () => {
     expect(titles).toContain('תעודה'); // certificate step present
   });
 
+  // the guide is the only manual he has, so it has to keep up with the app
+  test('the guide covers every screen and every button of the app', async ({ page }) => {
+    await seed(page);
+    await page.goto(APP_URL);
+    await page.evaluate(() => showView('guide'));
+    const text = await page.locator('#guideView').innerText();
+
+    // every menu item is explained somewhere in the guide
+    const menu = await page.$$eval('.sidemenu .menu-item', (els) => els.map((e) => e.innerText.trim()));
+    for (const item of menu) {
+      const label = item.replace(/^\P{L}+/u, '').split('\n')[0].trim();   // drop the leading emoji
+      expect(text, `guide should cover the menu item "${label}"`).toContain(label);
+    }
+    // and the pieces of the tracker screen that are easy to miss
+    for (const must of ['מטבע', 'הערות', 'תאריך', 'שכפל נסיעה', 'שמור למסך הבית',
+                        'POLISHED DIAMONDS', 'Invoice Number', 'Invoice Date']) {
+      expect(text, `guide should explain ${must}`).toContain(must);
+    }
+    // photos do travel between devices now — the old warning must not linger
+    expect(text).not.toContain('לא</b> עוברות');
+    expect(text).not.toMatch(/במכשיר שבו צירפתם אותן בלבד/);
+  });
+
   test('Excel export is removed; Excel import remains', async ({ page }) => {
     await seed(page);
     await page.goto(APP_URL);
@@ -559,27 +582,29 @@ test.describe('Shipment invoice (משלוח)', () => {
     expect(errors, 'no console/page errors').toEqual([]);
   });
 
-  test('the To box starts empty, takes free text, and is remembered per trip', async ({ page }) => {
+  test('the To box takes free text, and opens with the last consignee', async ({ page }) => {
     await seedTrip(page);
     await page.goto(APP_URL);
     await page.locator('#navShip').click();
 
     const to = page.locator('#shipTo');
-    await expect(to).toHaveValue('');                                 // a trip's first invoice starts blank
-    await expect(page.locator('#shipToOut')).toHaveText('');
+    await expect(to).toHaveValue('');                                 // nothing shipped yet, nothing to offer
     await to.fill('SOME OTHER SHIPPER\nLINE TWO\nLINE THREE');
     await page.locator('#shipDate').fill('2026-08-20');               // the date he may still correct
 
     await expect.poll(async () => page.evaluate((key) => {
       const s = JSON.parse(localStorage.getItem(key)), sh = s.trips[0].shipment || {};
-      return [sh.to, sh.date];
-    }, STORAGE_KEY)).toEqual(['SOME OTHER SHIPPER\nLINE TWO\nLINE THREE', '2026-08-20']);
+      return [sh.to, sh.date, s.shipTo];
+    }, STORAGE_KEY)).toEqual([
+      'SOME OTHER SHIPPER\nLINE TWO\nLINE THREE', '2026-08-20',
+      'SOME OTHER SHIPPER\nLINE TWO\nLINE THREE',
+    ]);
 
-    // what he typed on one trip is not carried into another trip's invoice
+    // the next trip's invoice opens with the same consignee, ready to reuse
     page.on('dialog', (d) => (d.type() === 'prompt' ? d.accept('Second trip') : d.dismiss()));
     await page.evaluate(() => addTrip());
     await page.locator('#navShip').click();
-    await expect(page.locator('#shipTo')).toHaveValue('');
+    await expect(page.locator('#shipTo')).toHaveValue('SOME OTHER SHIPPER\nLINE TWO\nLINE THREE');
     await page.evaluate(() => { state.activeTripId = state.trips[0].id; save(); render(); showView('ship'); });
 
     // and it comes back the next time that trip's form is opened
@@ -654,7 +679,7 @@ test.describe('Shipment invoice (משלוח)', () => {
     await page.emulateMedia({ media: null });
   });
 
-  test('a duplicated trip starts its invoice from scratch', async ({ page }) => {
+  test('a duplicated trip is issued its own invoice', async ({ page }) => {
     await seedTrip(page);
     await page.goto(APP_URL);
     await page.locator('#navShip').click();
@@ -665,7 +690,7 @@ test.describe('Shipment invoice (משלוח)', () => {
     await page.evaluate(() => duplicateTrip());
     await page.locator('#navShip').click();
     await expect(page.locator('#shipNum')).toHaveText('64912');       // never a second invoice 64911
-    await expect(page.locator('#shipTo')).toHaveValue('');            // and no consignee carried over
+    await expect(page.locator('#shipTo')).toHaveValue('SOME OTHER SHIPPER');
   });
 });
 
