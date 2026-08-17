@@ -559,31 +559,33 @@ test.describe('Shipment invoice (משלוח)', () => {
     expect(errors, 'no console/page errors').toEqual([]);
   });
 
-  test('the To box takes free text, and is remembered per trip', async ({ page }) => {
+  test('the To box starts empty, takes free text, and is remembered per trip', async ({ page }) => {
     await seedTrip(page);
     await page.goto(APP_URL);
     await page.locator('#navShip').click();
 
     const to = page.locator('#shipTo');
-    await expect(to).toHaveValue(/D And J EXPRESS LLC/);              // a starting point he can replace
-    // the box opens tall enough for every line of it, nothing scrolled out of sight
-    expect(await to.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(2);
+    await expect(to).toHaveValue('');                                 // a trip's first invoice starts blank
+    await expect(page.locator('#shipToOut')).toHaveText('');
     await to.fill('SOME OTHER SHIPPER\nLINE TWO\nLINE THREE');
     await page.locator('#shipDate').fill('2026-08-20');               // the date he may still correct
 
     await expect.poll(async () => page.evaluate((key) => {
       const s = JSON.parse(localStorage.getItem(key)), sh = s.trips[0].shipment || {};
-      return [sh.to, sh.date, s.shipTo];
-    }, STORAGE_KEY)).toEqual([
-      'SOME OTHER SHIPPER\nLINE TWO\nLINE THREE', '2026-08-20',
-      'SOME OTHER SHIPPER\nLINE TWO\nLINE THREE',
-    ]);
+      return [sh.to, sh.date];
+    }, STORAGE_KEY)).toEqual(['SOME OTHER SHIPPER\nLINE TWO\nLINE THREE', '2026-08-20']);
 
-    // and it comes back the next time the form is opened
-    await page.locator('#navTracker').click();
+    // what he typed on one trip is not carried into another trip's invoice
+    page.on('dialog', (d) => (d.type() === 'prompt' ? d.accept('Second trip') : d.dismiss()));
+    await page.evaluate(() => addTrip());
     await page.locator('#navShip').click();
+    await expect(page.locator('#shipTo')).toHaveValue('');
+    await page.evaluate(() => { state.activeTripId = state.trips[0].id; save(); render(); showView('ship'); });
+
+    // and it comes back the next time that trip's form is opened
     await expect(page.locator('#shipTo')).toHaveValue('SOME OTHER SHIPPER\nLINE TWO\nLINE THREE');
     await expect(page.locator('#shipDate')).toHaveValue('2026-08-20');
+    await expect(page.locator('#shipToOut')).toHaveText('SOME OTHER SHIPPER\nLINE TWO\nLINE THREE');
     // the box grew to hold all three lines instead of clipping them
     const box = page.locator('#shipTo');
     expect(await box.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(2);
@@ -652,7 +654,7 @@ test.describe('Shipment invoice (משלוח)', () => {
     await page.emulateMedia({ media: null });
   });
 
-  test('a duplicated trip keeps the consignee but is issued its own invoice', async ({ page }) => {
+  test('a duplicated trip starts its invoice from scratch', async ({ page }) => {
     await seedTrip(page);
     await page.goto(APP_URL);
     await page.locator('#navShip').click();
@@ -663,7 +665,7 @@ test.describe('Shipment invoice (משלוח)', () => {
     await page.evaluate(() => duplicateTrip());
     await page.locator('#navShip').click();
     await expect(page.locator('#shipNum')).toHaveText('64912');       // never a second invoice 64911
-    await expect(page.locator('#shipTo')).toHaveValue('SOME OTHER SHIPPER');
+    await expect(page.locator('#shipTo')).toHaveValue('');            // and no consignee carried over
   });
 });
 
