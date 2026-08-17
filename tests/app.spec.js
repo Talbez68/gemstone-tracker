@@ -424,8 +424,17 @@ test.describe('Gemstone tracker', () => {
     await expect(panel.locator('.sum-table tfoot')).toContainText('Total — all vendors');
     await expect(panel.locator('.totals')).toContainText('Total Carats');
 
-    // the trip name is his own text and stays as he typed it
-    await expect(panel.locator('.sum-head .d')).toContainText('Test trip');
+    // nothing but the logo above the table — no trip label, no heading
+    await expect(panel.locator('.sum-head')).toHaveText('');
+    // and no Hebrew anywhere on the sheet
+    expect(await panel.innerText()).not.toMatch(/[֐-׿]/);
+
+    // it reads left-to-right: '#' sits to the left of 'Sold'
+    expect(await panel.locator('.sum-panel, .sum-table').first().evaluate(
+      (el) => getComputedStyle(el).direction)).toBe('ltr');
+    const first = await panel.locator('.sum-table thead th').first().boundingBox();
+    const last = await panel.locator('.sum-table thead th').last().boundingBox();
+    expect(first.x, '# column is left of the Sold column').toBeLessThan(last.x);
   });
 });
 
