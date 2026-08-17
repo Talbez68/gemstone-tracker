@@ -16,7 +16,7 @@
     --bg:#f4f1ea; --panel:#ffffff; --ink:#2b2b2b; --muted:#7a7468;
     --line:#e3ddd0; --accent:#0f7b6c; --accent-d:#0a5c50;
     --gold:#b8932f; --soft:#faf8f3; --danger:#c0392b;
-    --auto:#eef6f4; --sold:#fff7e6; --trip:#3d4a8a; --trip-d:#2c376b;
+    --auto:#eef6f4; --hi:#fff7e6; --trip:#3d4a8a; --trip-d:#2c376b;
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
@@ -113,7 +113,6 @@
      and the white text was left invisible on the header's own pale background. */
   .band th{padding:7px; font-size:14px; letter-spacing:.5px; color:var(--accent-d)}
   th.band-taken{color:var(--accent-d)}
-  th.band-sales{color:#8a6a16}          /* --gold itself only reaches 2.7:1 on this background */
   th.band-tools{background:var(--soft)}
   tbody td input, tbody td select{
     width:100%; border:none; background:transparent; padding:9px 6px;
@@ -123,13 +122,11 @@
   tbody td input:focus, tbody td select:focus{background:#eef6f4; box-shadow:inset 0 0 0 2px var(--accent)}
   tbody tr:nth-child(even){background:#fbfaf6}
   tbody td.auto{background:var(--auto); font-weight:700; color:var(--accent-d); padding:9px 6px}
-  tbody tr.is-sold{background:var(--sold)!important}
   td.col-num{color:var(--muted); font-weight:600; width:42px}
   th.col-stones,td.col-stones{width:54px}
   td.col-del{width:40px}
   .del-row{background:none; border:none; cursor:pointer; color:#bbb; font-size:18px; padding:6px}
   .del-row:hover{color:var(--danger)}
-  td.col-sold input{width:20px; height:20px; cursor:pointer}
   /* certificate image column */
   th.col-cert,td.col-cert{width:62px}
   .cert-cell{display:flex; align-items:center; justify-content:center; padding:5px}
@@ -173,7 +170,6 @@
     border-radius:12px; padding:14px 16px}
   .card .k{color:var(--muted); font-size:14px; margin-bottom:4px}
   .card .v{font-size:24px; font-weight:800; color:var(--accent-d)}
-  .card.profit .v{color:var(--gold)}
 
   .summary-vendor{margin-bottom:26px}
   .summary-vendor h3{margin:0 0 6px; font-size:19px; color:var(--accent-d);
@@ -212,7 +208,7 @@
     header,.tripbar,.tabs,.toolbar,.vendor-actions,.add-row-bar,.settings,
     details.help,.del-row,.tab-add,.col-del,#numToast,
     .sidemenu,.menu-toggle,.menu-backdrop,.guide-view,
-    .sales-col,.sales-card,.no-print{display:none!important}
+    .no-print{display:none!important}
     main{padding:0}
     .panel{border:none; box-shadow:none; border-radius:0; padding:0}
     .table-scroll{overflow:visible}
@@ -294,8 +290,7 @@
   .hist-table tbody tr:nth-child(even){background:#fbfaf6}
   .hist-table .h-name{text-align:right; font-weight:700; color:var(--accent-d)}
   .hist-table .auto{background:var(--auto); font-weight:700; color:var(--accent-d)}
-  .hist-table .h-profit{font-weight:800; color:var(--gold)}
-  .hist-table tr.hist-active{background:var(--sold)!important}
+  .hist-table tr.hist-active{background:var(--hi)!important}
   .h-badge{background:var(--accent); color:#fff; font-size:11px; padding:2px 8px; border-radius:8px; font-weight:600; margin-right:6px}
   .hist-foot td{background:#f1ede3; font-weight:800; color:var(--accent-d)}
   /* summary: one combined table of all vendors */
@@ -304,7 +299,6 @@
   .sum-table thead th{background:var(--soft); color:var(--accent-d); font-weight:700; position:static; font-size:14px}
   .sum-table tbody tr:nth-child(even){background:#fbfaf6}
   .sum-table td.auto{background:var(--auto); font-weight:700; color:var(--accent-d)}
-  .sum-table tr.is-sold{background:var(--sold)!important}
   .sum-table tfoot td{background:#f1ede3; font-weight:800; color:var(--accent-d); padding:11px 8px}
   .sum-table tfoot .lbl{text-align:left; color:var(--accent-d)}
   /* friendly mobile preview */
@@ -322,7 +316,6 @@
   .pv-stat{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 8px; text-align:center}
   .pv-stat .lbl{color:var(--muted); font-size:13px; margin-bottom:4px}
   .pv-stat .num{font-size:20px; font-weight:800; color:var(--accent-d); direction:ltr}
-  .pv-stat.profit .num{color:var(--gold)}
   .pv-vendor{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:14px; box-shadow:0 2px 8px rgba(0,0,0,.04)}
   .pv-vendor-head{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
     margin-bottom:8px; border-bottom:1px solid var(--line); padding-bottom:8px}
@@ -330,15 +323,12 @@
   .pv-vsub{color:var(--muted); font-size:14px}
   .pv-row{padding:12px 6px; border-bottom:1px solid var(--soft)}
   .pv-row:last-child{border-bottom:none}
-  .pv-row.sold{background:var(--sold); border-radius:10px; padding:12px 10px}
   .pv-row .r-head{display:flex; align-items:baseline; gap:10px}
   .pv-row .r-serial{font-size:17px; font-weight:800; color:var(--ink); direction:ltr}
-  .pv-row .r-soldtag{margin-right:auto; color:var(--gold); font-weight:700; font-size:14px}
   .pv-row .r-grid{display:grid; grid-template-columns:1fr 1fr; gap:5px 18px; margin-top:8px}
   .pv-row .f{display:flex; justify-content:space-between; gap:10px; font-size:15px; padding:4px 2px; border-bottom:1px dashed var(--line)}
   .pv-row .f .fl{color:var(--muted)}
   .pv-row .f .fv{font-weight:700; color:var(--ink); direction:ltr; unicode-bidi:isolate}
-  .pv-row .f.sale .fv{color:var(--accent-d)}
   .pv-row .f.note{grid-column:1 / -1; display:block}
   .pv-row .f.note .fl{margin-left:6px}
   .pv-row .f.note .fv{direction:rtl; unicode-bidi:normal; font-weight:600}
@@ -490,17 +480,13 @@ const COLS = [
   {key:'totCost',label:'סה"כ עלות',     type:'auto'},
   {key:'cert',   label:'תעודה',         type:'certimg'},
   {key:'notes',  label:'הערות',         type:'text'},
-  {key:'sale',   label:'מכירה לקראט',   type:'num'},
-  {key:'totSale',label:'סה"כ מכירה',    type:'auto'},
-  {key:'sold',   label:'נמכר',          type:'check'},
 ];
-const SALE = {sale:1, totSale:1, sold:1};   // sales columns – hidden in print
 
 let state = load();
 
 /* ---------- model ---------- */
 function rid(p){ return p+Math.random().toString(36).slice(2,9); }
-function blankRow(){ return {serial:'',weight:'',stones:'',shape:'',cost:'',cert:'',notes:'',sale:'',sold:false}; }
+function blankRow(){ return {serial:'',weight:'',stones:'',shape:'',cost:'',cert:'',notes:''}; }
 function newVendor(name, code=''){ const r=blankRow(); if(code) r.serial=makeSerial(code,1); return {id:rid('v'), name, code, rows:[r]}; }
 /* ---- vendor codes & auto-serials (CODE-01, CODE-02 ...) ---- */
 function vendorCode(v){ return ((v&&v.code) || (state&&state.vendorCodes&&state.vendorCodes[v.name]) || '').toUpperCase(); }
@@ -534,7 +520,7 @@ function migrateRows(s){
   (s.trips||[]).forEach(t=>(t.vendors||[]).forEach(v=>(v.rows||[]).forEach(r=>{
     if(r.cert && !/^cert_/.test(r.cert)) r.cert='';
     // only touch values that carry float noise, never something he typed himself
-    ['weight','stones','cost','sale'].forEach(k=>{ if(/\d{9,}/.test(r[k]||'')) r[k]=cleanNum(r[k]); });
+    ['weight','stones','cost'].forEach(k=>{ if(/\d{9,}/.test(r[k]||'')) r[k]=cleanNum(r[k]); });
   })));
   return s;
 }
@@ -571,7 +557,6 @@ function num(v){ const n=parseFloat(v); return isFinite(n)?n:0; }
 function fmtMoney(n){ return cur()+' '+(Math.round(n*100)/100).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:2}); }
 function fmtNum(n){ return (Math.round(n*1000)/1000).toLocaleString('en-US'); }
 function rowCost(r){ return num(r.weight)*num(r.cost); }
-function rowSale(r){ return num(r.weight)*num(r.sale); }
 function activeTrip(){ return state.trips.find(t=>t.id===state.activeTripId) || state.trips[0]; }
 function activeVendor(){ const t=activeTrip(); return t.vendors.find(v=>v.id===t.activeId); }
 function tripLabel(t){ return t.name + (t.date? '  ('+t.date+')':''); }
@@ -670,9 +655,9 @@ function buildVendor(trip,v){
   countInp.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); addRows(); } };
   bar.appendChild(addBtn); bar.appendChild(countWrap);
   const clearBtn=document.createElement('button'); clearBtn.className='btn btn-sm btn-outline'; clearBtn.textContent='🧹 נקה שורות ריקות';
-  clearBtn.title='מסיר את כל השורות הריקות (ללא משקל / מספר אבנים / צורה / עלות / מכירה / הערות). שורות עם נתונים נשמרות.';
+  clearBtn.title='מסיר את כל השורות הריקות (ללא משקל / מספר אבנים / צורה / עלות / הערות). שורות עם נתונים נשמרות.';
   clearBtn.onclick=()=>{
-    const keep=v.rows.filter(r=>hasData(r)||r.sold);
+    const keep=v.rows.filter(hasData);
     const removed=v.rows.length-keep.length;
     if(removed===0){ alert('אין שורות ריקות להסרה.'); return; }
     if(!confirm('להסיר '+removed+' שורות ריקות? שורות עם נתונים יישארו.')) return;
@@ -701,30 +686,24 @@ function headerHTML(){
       <th class="band-tools" colspan="2"></th>
       <th class="band-taken" colspan="6">סחורות שנלקחו</th>
       <th class="band-tools" colspan="1"></th>
-      <th class="band-sales sales-col" colspan="3">מכירות</th>
     </tr>
     <tr>
       <th>מספר</th>
-      ${COLS.map(c=>`<th class="${SALE[c.key]?'sales-col':''}${c.key==='stones'?' col-stones':''}${c.key==='cert'?' col-cert':''}">${c.label}</th>`).join('')}
+      ${COLS.map(c=>`<th class="${c.key==='stones'?'col-stones':''}${c.key==='cert'?' col-cert':''}">${c.label}</th>`).join('')}
       <th class="col-del"></th>
     </tr>
   </thead>`;
 }
 
 function buildRow(v,r,i){
-  const tr=document.createElement('tr'); if(r.sold) tr.className='is-sold';
+  const tr=document.createElement('tr');
   const tdNum=document.createElement('td'); tdNum.className='col-num'; tdNum.textContent=i+1; tr.appendChild(tdNum);
 
   COLS.forEach(c=>{
     const td=document.createElement('td');
     if(c.type==='auto'){
       td.className='auto'; td.dataset.auto=c.key;
-      td.textContent=c.key==='totCost'?fmtMoney(rowCost(r)):fmtMoney(rowSale(r));
-    }else if(c.type==='check'){
-      td.className='col-sold';
-      const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!!r.sold;
-      cb.onchange=()=>{ r.sold=cb.checked; save(); tr.className=r.sold?'is-sold':''; };
-      td.appendChild(cb);
+      td.textContent=fmtMoney(rowCost(r));
     }else if(c.type==='shape'){
       const inp=document.createElement('input'); inp.setAttribute('list','shapes');
       inp.value=r.shape||''; inp.placeholder='—';
@@ -744,12 +723,11 @@ function buildRow(v,r,i){
           inp._last=inp.value; inp.classList.remove('input-invalid');
         }
         r[c.key]=inp.value;
-        if(c.key==='weight'||c.key==='cost'||c.key==='sale') updateAutoCells(tr,r,v);
+        if(c.key==='weight'||c.key==='cost') updateAutoCells(tr,r,v);
         debouncedSave();
       };
       td.appendChild(inp);
     }
-    if(SALE[c.key]) td.className=(td.className+' sales-col').trim();
     if(c.key==='stones') td.className=(td.className+' col-stones').trim();
     tr.appendChild(td);
   });
@@ -763,7 +741,7 @@ function buildRow(v,r,i){
 
 function updateAutoCells(tr,r,v){
   tr.querySelectorAll('td.auto').forEach(td=>{
-    td.textContent=td.dataset.auto==='totCost'?fmtMoney(rowCost(r)):fmtMoney(rowSale(r));
+    td.textContent=fmtMoney(rowCost(r));
   });
   const table=tr.closest('table'); if(table){ table.querySelector('tfoot').replaceWith(footerHTML(v)); }
   const panel=tr.closest('.panel'); if(panel){ const old=panel.querySelector('.totals'); if(old) old.replaceWith(totalsCards(v)); }
@@ -771,7 +749,6 @@ function updateAutoCells(tr,r,v){
 
 function footerHTML(v){
   const tc=v.rows.reduce((s,r)=>s+rowCost(r),0);
-  const ts=v.rows.reduce((s,r)=>s+rowSale(r),0);
   const stones=v.rows.reduce((s,r)=>s+num(r.stones),0);
   const wt=v.rows.reduce((s,r)=>s+num(r.weight),0);
   const tf=document.createElement('tfoot');
@@ -779,7 +756,6 @@ function footerHTML(v){
     <td class="lbl" colspan="2">סה"כ</td>
     <td>${fmtNum(wt)}</td><td class="col-stones">${fmtNum(stones)}</td><td></td><td></td>
     <td class="auto">${fmtMoney(tc)}</td><td></td><td></td>
-    <td class="sales-col"></td><td class="auto sales-col">${fmtMoney(ts)}</td><td class="sales-col"></td>
     <td class="col-del"></td>
   </tr>`;
   return tf;
@@ -787,14 +763,13 @@ function footerHTML(v){
 
 function totalsCards(v){
   const tc=v.rows.reduce((s,r)=>s+rowCost(r),0);
-  const ts=v.rows.reduce((s,r)=>s+rowSale(r),0);
-  const sold=v.rows.filter(r=>r.sold).reduce((s,r)=>s+rowSale(r),0);
+  const stones=v.rows.reduce((s,r)=>s+num(r.stones),0);
+  const wt=v.rows.reduce((s,r)=>s+num(r.weight),0);
   const d=document.createElement('div'); d.className='totals';
   d.innerHTML=`
     <div class="card"><div class="k">סה"כ עלות</div><div class="v">${fmtMoney(tc)}</div></div>
-    <div class="card sales-card"><div class="k">סה"כ מכירה (פוטנציאל)</div><div class="v">${fmtMoney(ts)}</div></div>
-    <div class="card sales-card"><div class="k">נמכר בפועל</div><div class="v">${fmtMoney(sold)}</div></div>
-    <div class="card profit sales-card"><div class="k">רווח (מכירה − עלות)</div><div class="v">${fmtMoney(ts-tc)}</div></div>`;
+    <div class="card"><div class="k">סה"כ קראט</div><div class="v">${fmtNum(wt)}</div></div>
+    <div class="card"><div class="k">סה"כ אבנים</div><div class="v">${fmtNum(stones)}</div></div>`;
   return d;
 }
 
@@ -808,26 +783,22 @@ function buildSummary(trip){
   head.innerHTML=`<img class="sum-logo" src="${BMD_LOGO}" alt="Bezalel Moshe Diamonds">`;
   wrap.appendChild(head);
 
-  let gCost=0,gSale=0,gSold=0,gStones=0,gWt=0,gRows=0,idx=0;
+  let gCost=0,gStones=0,gWt=0,gRows=0,idx=0;
   const table=document.createElement('table'); table.className='sum-table';
   table.innerHTML=`<thead><tr>
     <th>#</th><th>Serial</th><th>Weight (ct)</th><th class="col-stones">Stones</th><th>Shape</th>
-    <th>Cost / ct</th><th>Total Cost</th><th>Cert</th><th>Notes</th><th class="sales-col">Sale / ct</th><th class="sales-col">Total Sale</th><th class="sales-col">Sold</th>
+    <th>Cost / ct</th><th>Total Cost</th><th>Cert</th><th>Notes</th>
   </tr></thead>`;
   const tb=document.createElement('tbody');
   trip.vendors.forEach(v=>{
     const rows=v.rows.filter(hasData); if(rows.length===0) return;
     rows.forEach((r,i)=>{
-      const c=rowCost(r),s=rowSale(r);
-      gCost+=c; gSale+=s; gStones+=num(r.stones); gWt+=num(r.weight); gRows++; idx++;
-      if(r.sold) gSold+=s;
+      const c=rowCost(r);
+      gCost+=c; gStones+=num(r.stones); gWt+=num(r.weight); gRows++; idx++;
       const tr=document.createElement('tr');
-      if(r.sold) tr.className='is-sold';
       tr.innerHTML=`<td class="col-num">${idx}</td><td>${escapeHtml(r.serial)}</td>
         <td>${r.weight?fmtNum(num(r.weight)):''}</td><td class="col-stones">${r.stones||''}</td><td>${escapeHtml(r.shape)}</td>
-        <td>${r.cost?fmtMoney(num(r.cost)):''}</td><td class="auto">${fmtMoney(c)}</td><td class="col-cert">${r.cert?`<img class="sum-cert-thumb" data-cert="${escapeHtml(r.cert)}" alt="Cert">`:''}</td><td class="s-notes">${escapeHtml(r.notes)}</td>
-        <td class="sales-col">${r.sale?fmtMoney(num(r.sale)):''}</td><td class="auto sales-col">${fmtMoney(s)}</td>
-        <td class="sales-col">${r.sold?'✓':''}</td>`;
+        <td>${r.cost?fmtMoney(num(r.cost)):''}</td><td class="auto">${fmtMoney(c)}</td><td class="col-cert">${r.cert?`<img class="sum-cert-thumb" data-cert="${escapeHtml(r.cert)}" alt="Cert">`:''}</td><td class="s-notes">${escapeHtml(r.notes)}</td>`;
       tb.appendChild(tr);
     });
   });
@@ -835,7 +806,7 @@ function buildSummary(trip){
   const tf=document.createElement('tfoot');
   tf.innerHTML=`<tr><td class="lbl" colspan="2">Total — all vendors</td>
     <td>${fmtNum(gWt)}</td><td class="col-stones">${fmtNum(gStones)}</td><td></td><td></td>
-    <td class="auto">${fmtMoney(gCost)}</td><td></td><td></td><td class="sales-col"></td><td class="auto sales-col">${fmtMoney(gSale)}</td><td class="sales-col"></td></tr>`;
+    <td class="auto">${fmtMoney(gCost)}</td><td></td><td></td></tr>`;
   table.appendChild(tf);
 
   if(gRows===0){
@@ -849,14 +820,12 @@ function buildSummary(trip){
   g.innerHTML=`
     <div class="card no-print"><div class="k">Total Stones</div><div class="v">${fmtNum(gStones)}</div></div>
     <div class="card"><div class="k">Total Carats</div><div class="v">${fmtNum(gWt)}</div></div>
-    <div class="card"><div class="k">Total Cost</div><div class="v">${fmtMoney(gCost)}</div></div>
-    <div class="card sales-card"><div class="k">Total Sale (potential)</div><div class="v">${fmtMoney(gSale)}</div></div>
-    <div class="card profit sales-card"><div class="k">Total Profit</div><div class="v">${fmtMoney(gSale-gCost)}</div></div>`;
+    <div class="card"><div class="k">Total Cost</div><div class="v">${fmtMoney(gCost)}</div></div>`;
   wrap.appendChild(g);
   return wrap;
 }
 /* a row counts as real data when it has gem info — an auto-serial alone doesn't */
-function hasData(r){ return r.weight||r.stones||r.shape||r.cost||r.sale||r.notes||r.cert; }
+function hasData(r){ return r.weight||r.stones||r.shape||r.cost||r.notes||r.cert; }
 
 /* ============================================================
    ACTIONS — trips
@@ -938,7 +907,7 @@ function deleteVendor(id){
 let dbt=null; function debouncedSave(){ clearTimeout(dbt); dbt=setTimeout(save,400); }
 
 /* ----- numeric-only columns: accept digits (one dot for decimals) + warn ----- */
-const VALIDATED_NUM = {weight:'num', stones:'int', cost:'num', sale:'num'};   // משקל, מספר אבנים, עלות לקראט, מכירה לקראט
+const VALIDATED_NUM = {weight:'num', stones:'int', cost:'num'};   // משקל, מספר אבנים, עלות לקראט
 let numToastTimer=null;
 function showNumError(kind){
   let t=$('numToast');
@@ -1035,7 +1004,6 @@ function cellText(c,ss){
   if(t==='b') return raw==='1'?'TRUE':'';
   return raw;
 }
-function isSold(v){ return /^(true|1|כן|v|✓|x|yes)$/i.test((v||'').trim()); }
 
 /* ---- one vendor = one code ----------------------------------------
    An old sheet often mixes several codes (his "Gemesis" tab holds RM,
@@ -1098,13 +1066,13 @@ async function importXLSX(ev){
       for(const m of rows){
         const vals=Object.values(m).map(x=>x.trim());
         if(!seenHeader){ if(vals.includes('מספר')&&vals.includes('סריה')) seenHeader=true; continue; }
+        // an old file may still carry מכירה לקראט / נמכר columns; they are simply ignored
         const weight=get(m,'משקל'),stones=get(m,'מספר אבנים'),shape=get(m,'צורה'),
-          cost=get(m,'עלות לקראט'),notes=get(m,'הערות'),sale=get(m,'מכירה לקראט'),
-          serial=get(m,'סריה'),sold=get(m,'נמכר');
-        const real=[weight,stones,cost,sale].some(v=>parseFloat(v)>0);   // a real entry has numeric data
+          cost=get(m,'עלות לקראט'),notes=get(m,'הערות'),serial=get(m,'סריה');
+        const real=[weight,stones,cost].some(v=>parseFloat(v)>0);   // a real entry has numeric data
         if(!real) continue;
         dataRows.push({serial,weight:cleanNum(weight),stones:cleanNum(stones),
-          shape,cost:cleanNum(cost),cert:'',notes:notes==='0'?'':notes,sale:cleanNum(sale),sold:isSold(sold)});
+          shape,cost:cleanNum(cost),cert:'',notes:notes==='0'?'':notes});
       }
       if(!dataRows.length) continue;                                   // empty tab -> no vendor tab
       const vname=VENDOR_HE[sh.name.trim().toLowerCase()]||sh.name.trim();
@@ -1781,74 +1749,66 @@ async function saveToHome(){
 function openTrip(id){ state.activeTripId=id; save(); render(); showView('tracker'); }
 
 /* ----- vendor statistics across all trips (by vendor name) ----- */
-let statsSort='profit';
+let statsSort='cost';
 function aggregateVendorStats(){
   const map={};
   state.trips.forEach(t=>{
     t.vendors.forEach(v=>{
       const rows=v.rows.filter(hasData); if(!rows.length) return;
       const a = map[v.name] || (map[v.name]={name:v.name, code:vendorCode(v), trips:0, byTrip:[],
-        boughtCount:0, cost:0, carat:0, stones:0, soldCount:0, soldRev:0, soldCost:0, unsoldCost:0});
+        boughtCount:0, cost:0, carat:0, stones:0});
       if(!a.code) a.code=vendorCode(v);
-      let tCost=0,tRev=0,tSoldCost=0,tCount=0,tSold=0;
+      let tCost=0,tCount=0,tCarat=0;
       rows.forEach(r=>{
-        const rc=rowCost(r), rs=rowSale(r);
-        a.boughtCount++; a.cost+=rc; a.carat+=num(r.weight); a.stones+=num(r.stones); tCount++; tCost+=rc;
-        if(r.sold){ a.soldCount++; a.soldRev+=rs; a.soldCost+=rc; tSold++; tRev+=rs; tSoldCost+=rc; }
-        else a.unsoldCost+=rc;
+        const rc=rowCost(r);
+        a.boughtCount++; a.cost+=rc; a.carat+=num(r.weight); a.stones+=num(r.stones);
+        tCount++; tCost+=rc; tCarat+=num(r.weight);
       });
       a.trips++;
-      a.byTrip.push({name:t.name, date:t.date||'', count:tCount, sold:tSold, cost:tCost, profit:tRev-tSoldCost});
+      a.byTrip.push({name:t.name, date:t.date||'', count:tCount, cost:tCost, carat:tCarat});
     });
   });
   const list=Object.values(map);
   list.forEach(a=>{
-    a.realized=a.soldRev-a.soldCost;
-    a.margin=a.soldCost>0 ? a.realized/a.soldCost*100 : 0;
-    a.sellThrough=a.boughtCount>0 ? a.soldCount/a.boughtCount*100 : 0;
     a.avgCostCarat=a.carat>0 ? a.cost/a.carat : 0;
+    a.avgCostStone=a.boughtCount>0 ? a.cost/a.boughtCount : 0;
     a.byTrip.sort((x,y)=>(y.date||'').localeCompare(x.date||''));
   });
-  const sorters={ profit:(x,y)=>y.realized-x.realized, margin:(x,y)=>y.margin-x.margin,
-    sell:(x,y)=>y.sellThrough-x.sellThrough, cost:(x,y)=>y.cost-x.cost, trips:(x,y)=>y.trips-x.trips };
-  list.sort(sorters[statsSort]||sorters.profit);
+  const sorters={ cost:(x,y)=>y.cost-x.cost, percarat:(x,y)=>y.avgCostCarat-x.avgCostCarat,
+    carat:(x,y)=>y.carat-x.carat, stones:(x,y)=>y.boughtCount-x.boughtCount, trips:(x,y)=>y.trips-x.trips };
+  list.sort(sorters[statsSort]||sorters.cost);
   return list;
 }
 function buildStats(){
   const list=aggregateVendorStats();
   const opt=(v,t)=>`<option value="${v}"${statsSort===v?' selected':''}>${t}</option>`;
   const head=`<div class="st-head-main"><h2>📊 סטטיסטיקת ספקים</h2>
-    <div class="st-sub">סיכום לכל ספק על פני כל הנסיעות</div></div>
+    <div class="st-sub">מה קנית מכל ספק, על פני כל הנסיעות</div></div>
     <div class="st-sort">מיון לפי:
       <select onchange="statsSort=this.value; buildStats();">
-        ${opt('profit','רווח ממומש')}${opt('margin','מרווח %')}${opt('sell','אחוז מכירה')}${opt('cost','עלות כוללת')}${opt('trips','מספר נסיעות')}
+        ${opt('cost','עלות כוללת')}${opt('percarat','עלות לקראט')}${opt('carat','סה"כ קראט')}${opt('stones','מספר אבנים')}${opt('trips','מספר נסיעות')}
       </select></div>`;
   if(!list.length){
     $('statsView').innerHTML=`<div class="stats-wrap">${head}<div class="empty">עדיין אין נתונים. מלאו אבנים אצל ספקים כדי לראות סטטיסטיקה 💎</div></div>`;
     return;
   }
-  const pct=n=>Math.round(n)+'%';
   const cardsHtml=list.map((a,i)=>{
     const kv=(l,v)=>`<div class="f"><span class="fl">${l}</span><span class="fv">${v}</span></div>`;
     const grid=[
-      kv('עלות כוללת', fmtMoney(a.cost)),
-      kv('סה"כ מכירות', fmtMoney(a.soldRev)),
       kv('אבנים שנקנו', fmtNum(a.boughtCount)),
-      kv('נמכרו', fmtNum(a.soldCount)+' / '+fmtNum(a.boughtCount)),
-      kv('סה"כ קראט', fmtNum(a.carat)),
-      kv('עלות ממוצעת לקראט', fmtMoney(a.avgCostCarat)),
-      kv('שווי שלא נמכר', fmtMoney(a.unsoldCost)),
+      kv('סה"כ אבנים', fmtNum(a.stones)),
+      kv('עלות ממוצעת לאבן', fmtMoney(a.avgCostStone)),
       kv('נסיעות', fmtNum(a.trips)),
     ].join('');
     const time=a.byTrip.map(b=>`<div class="tt-row"><span>${escapeHtml(b.name)}${b.date?' · '+b.date:''}</span>
-      <span>עלות <b>${fmtMoney(b.cost)}</b> · רווח <b>${fmtMoney(b.profit)}</b></span></div>`).join('');
+      <span>עלות <b>${fmtMoney(b.cost)}</b> · ${fmtNum(b.count)} אבנים · ${fmtNum(b.carat)} קראט</span></div>`).join('');
     return `<div class="st-vendor">
       <div class="st-head"><span class="pv-vname">${escapeHtml(a.name)}${a.code?` <span class="vcode-badge">${escapeHtml(a.code)}</span>`:''}</span>
-        ${i===0&&statsSort==='profit'?'<span class="st-top">⭐ הכי רווחי</span>':''}</div>
+        ${i===0&&statsSort==='cost'?'<span class="st-top">⭐ הקנייה הגדולה</span>':''}</div>
       <div class="st-headline">
-        <div class="pv-stat profit"><div class="lbl">רווח ממומש</div><div class="num">${fmtMoney(a.realized)}</div></div>
-        <div class="pv-stat"><div class="lbl">אחוז מכירה</div><div class="num">${pct(a.sellThrough)}</div></div>
-        <div class="pv-stat"><div class="lbl">מרווח</div><div class="num">${pct(a.margin)}</div></div>
+        <div class="pv-stat"><div class="lbl">עלות כוללת</div><div class="num">${fmtMoney(a.cost)}</div></div>
+        <div class="pv-stat"><div class="lbl">עלות ממוצעת לקראט</div><div class="num">${fmtMoney(a.avgCostCarat)}</div></div>
+        <div class="pv-stat"><div class="lbl">סה"כ קראט</div><div class="num">${fmtNum(a.carat)}</div></div>
       </div>
       <div class="st-grid">${grid}</div>
       <details class="st-time"><summary>לאורך זמן (${fmtNum(a.trips)} נסיעות)</summary>${time}</details>
@@ -1865,29 +1825,28 @@ function gotoPreviewTrip(id){
 }
 function buildPreview(){
   const trip=activeTrip();
-  let gCost=0,gSale=0,gSold=0,gWt=0,gStones=0,gRows=0;
+  let gCost=0,gWt=0,gStones=0,gRows=0;
   const vendorsHtml = trip.vendors.map(v=>{
     const rows=v.rows.filter(hasData); if(!rows.length) return '';
-    let c=0,s=0,wt=0,st=0;
+    let c=0,wt=0,st=0;
     const rowsHtml=rows.map(r=>{
-      const rc=rowCost(r), rs=rowSale(r); c+=rc; s+=rs; wt+=num(r.weight); st+=num(r.stones); if(r.sold) gSold+=rs;
+      const rc=rowCost(r); c+=rc; wt+=num(r.weight); st+=num(r.stones);
       const fields=[];
       if(r.weight) fields.push(['משקל', fmtNum(num(r.weight))+' ct']);
       if(r.stones && num(r.stones)>1) fields.push(['מספר אבנים', escapeHtml(r.stones)]);
       if(r.shape) fields.push(['צורה', escapeHtml(r.shape)]);
       if(r.cert) fields.push(['תעודה', `<img class="sum-cert-thumb" data-cert="${escapeHtml(r.cert)}" alt="תעודה">`]);
       fields.push(['עלות לקראט', fmtMoney(num(r.cost))]);
-      if(r.sale) fields.push(['מכירה לקראט', fmtMoney(num(r.sale)), 'sale']);
       if(r.notes) fields.push(['הערות', escapeHtml(r.notes), 'note']);
       const fieldsHtml=fields.map(f=>`<div class="f${f[2]?' '+f[2]:''}"><span class="fl">${f[0]}</span><span class="fv">${f[1]}</span></div>`).join('');
-      return `<div class="pv-row${r.sold?' sold':''}">
-        <div class="r-head"><b class="r-serial">${escapeHtml(r.serial||'—')}</b>${r.sold?'<span class="r-soldtag">✓ נמכר</span>':''}</div>
+      return `<div class="pv-row">
+        <div class="r-head"><b class="r-serial">${escapeHtml(r.serial||'—')}</b></div>
         <div class="r-grid">${fieldsHtml}</div>
       </div>`;
     }).join('');
-    gCost+=c; gSale+=s; gWt+=wt; gStones+=st; gRows+=rows.length;
+    gCost+=c; gWt+=wt; gStones+=st; gRows+=rows.length;
     const code=vendorCode(v);
-    const sub=`${rows.length} אבנים · עלות ${fmtMoney(c)}`+(s>0?` · מכירה ${fmtMoney(s)} · רווח ${fmtMoney(s-c)}`:'');
+    const sub=`${rows.length} אבנים · ${fmtNum(wt)} קראט · עלות ${fmtMoney(c)}`;
     return `<div class="pv-vendor">
       <div class="pv-vendor-head">
         <span class="pv-vname">${escapeHtml(v.name)}${code?` <span class="vcode-badge">${escapeHtml(code)}</span>`:''}</span>
@@ -1915,9 +1874,6 @@ function buildPreview(){
       ${headHtml}
       <div class="pv-stats">
         <div class="pv-stat"><div class="lbl">סה"כ עלות</div><div class="num">${fmtMoney(gCost)}</div></div>
-        <div class="pv-stat"><div class="lbl">סה"כ מכירה</div><div class="num">${fmtMoney(gSale)}</div></div>
-        <div class="pv-stat profit"><div class="lbl">רווח</div><div class="num">${fmtMoney(gSale-gCost)}</div></div>
-        <div class="pv-stat"><div class="lbl">נמכר בפועל</div><div class="num">${fmtMoney(gSold)}</div></div>
         <div class="pv-stat"><div class="lbl">סה"כ קראט</div><div class="num">${fmtNum(gWt)}</div></div>
         <div class="pv-stat"><div class="lbl">אבנים</div><div class="num">${fmtNum(gStones)}</div></div>
       </div>
@@ -1927,21 +1883,20 @@ function buildPreview(){
 }
 function buildHistory(){
   const trips=[...state.trips].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  let gCost=0,gSale=0,gSold=0;
+  let gCost=0;
   const body = trips.map(t=>{
-    let cost=0,sale=0,sold=0,rowsN=0,vendorsN=0;
+    let cost=0,rowsN=0,vendorsN=0;
     t.vendors.forEach(v=>{
       const dr=v.rows.filter(hasData);
       if(dr.length) vendorsN++;
-      dr.forEach(r=>{ cost+=rowCost(r); sale+=rowSale(r); if(r.sold) sold+=rowSale(r); rowsN++; });
+      dr.forEach(r=>{ cost+=rowCost(r); rowsN++; });
     });
-    gCost+=cost; gSale+=sale; gSold+=sold;
+    gCost+=cost;
     const act = t.id===state.activeTripId;
     return `<tr class="${act?'hist-active':''}">
       <td class="h-name">${escapeHtml(t.name)}${act?' <span class="h-badge">פתוחה</span>':''}</td>
       <td>${t.date||'—'}</td><td>${vendorsN}</td><td>${rowsN}</td>
-      <td class="auto">${fmtMoney(cost)}</td><td class="auto">${fmtMoney(sale)}</td>
-      <td>${fmtMoney(sold)}</td><td class="h-profit">${fmtMoney(sale-cost)}</td>
+      <td class="auto">${fmtMoney(cost)}</td>
       <td><button class="btn btn-sm btn-outline" onclick="openTrip('${t.id}')">פתח ↩</button></td>
     </tr>`;
   }).join('');
@@ -1952,20 +1907,16 @@ function buildHistory(){
       <div class="table-scroll"><table class="hist-table">
         <thead><tr>
           <th>נסיעה</th><th>תאריך</th><th>ספקים</th><th>שורות</th>
-          <th>סה"כ עלות</th><th>סה"כ מכירה</th><th>נמכר בפועל</th><th>רווח</th><th></th>
+          <th>סה"כ עלות</th><th></th>
         </tr></thead>
         <tbody>${body}</tbody>
         <tfoot class="hist-foot"><tr>
           <td class="h-name">סה"כ כל הנסיעות</td><td></td><td></td><td></td>
-          <td>${fmtMoney(gCost)}</td><td>${fmtMoney(gSale)}</td><td>${fmtMoney(gSold)}</td>
-          <td class="h-profit">${fmtMoney(gSale-gCost)}</td><td></td>
+          <td>${fmtMoney(gCost)}</td><td></td>
         </tr></tfoot>
       </table></div>
       <div class="totals" style="margin-top:18px">
         <div class="card"><div class="k">סה"כ עלות (כל הנסיעות)</div><div class="v">${fmtMoney(gCost)}</div></div>
-        <div class="card"><div class="k">סה"כ מכירה (פוטנציאל)</div><div class="v">${fmtMoney(gSale)}</div></div>
-        <div class="card"><div class="k">נמכר בפועל</div><div class="v">${fmtMoney(gSold)}</div></div>
-        <div class="card profit"><div class="k">רווח כולל</div><div class="v">${fmtMoney(gSale-gCost)}</div></div>
       </div>
     </div>`;
 }
@@ -2032,11 +1983,11 @@ function buildGuide(){
   `,'overview',{tip:'אני לא כותב סריות ביד – קובע קוד פעם אחת, וכל שורה חדשה מקבלת מספר לבד. PD-01, PD-02... תענוג.'})}
 
   ${guideStep(5,'ממלאים שורה',`
-    <p>בכל שורה ממלאים: <b>משקל, מספר אבנים, צורה, עלות לקראט</b> (ה<b>סריה</b> כבר ממולאת לבד מהקוד). אם האבן נמכרה – ממלאים גם <b>מכירה לקראט</b> ומסמנים ✔ בעמודת <b>נמכר</b>.</p>
+    <p>בכל שורה ממלאים: <b>משקל, מספר אבנים, צורה, עלות לקראט</b> (ה<b>סריה</b> כבר ממולאת לבד מהקוד).</p>
     <ul>
       <li>עמודת <b>צורה</b> פותחת רשימת צורות באנגלית (Round, Oval, Pear ...).</li>
       <li>בעמודות המספרים אפשר להקליד <b>רק מספרים</b> – אם תקליד בטעות אות, תקפוץ הודעה קטנה.</li>
-      <li>העמודות הכתומות <b>סה"כ עלות</b> ו‑<b>סה"כ מכירה</b> מחושבות לבד.</li>
+      <li>העמודה הכתומה <b>סה"כ עלות</b> מחושבת לבד (משקל × עלות לקראט).</li>
     </ul>
   `,null,{tip:'אני ממלא רק משקל ועלות לקראט. את כל החשבונות האפליקציה עושה במקומי 😎'})}
 
@@ -2059,34 +2010,34 @@ function buildGuide(){
   `,'addrow')}
 
   ${guideStep(8,'הסכומים והסיכום',`
-    <p>מתחת לטבלה יש כרטיסים עם <b>סה"כ עלות</b>, <b>סה"כ מכירה</b>, <b>נמכר בפועל</b> ו‑<b>רווח</b>. הכול מתעדכן לבד תוך כדי המילוי.</p>
+    <p>מתחת לטבלה יש כרטיסים עם <b>סה"כ עלות</b>, <b>סה"כ קראט</b> ו‑<b>סה"כ אבנים</b>. הכול מתעדכן לבד תוך כדי המילוי.</p>
     <p>הלשונית הצהובה <b>📊 סיכום כל הספקים</b> מציגה את <b>כל</b> השורות של כל הספקים ב<b>טבלה אחת</b>, עם סיכום כולל אחד בתחתית.</p>
   `,'summary')}
 
   ${guideStep(9,'תצוגה מהירה (מצוין לטלפון)',`
     <p>בתפריט, מתחת ל‑<b>🏠 מסך המעקב</b>, יש <b>👁️ תצוגה מהירה</b> – מסך נוח ונקי שמראה את הנסיעה הנוכחית, מתאים במיוחד <b>לטלפון בדרכים</b>.</p>
-    <p>למעלה רואים את כל הסכומים הגדולים (עלות, מכירה, רווח, נמכר, קראט, אבנים), ומתחת כל ספק עם הסיכום שלו וכרטיס קטן לכל אבן. בכרטיס של כל אבן רואים את ה<b>עלות לקראט</b> וה<b>מכירה לקראט</b> – בדיוק המחירים שמדברים עליהם מול הספק – והסכומים הכוללים נשארים בסיכום של הספק ובכרטיסים שלמעלה. אפשר להחליף נסיעה למעלה ולראות מיד את הסיכום שלה.</p>
+    <p>למעלה רואים את הסכומים הגדולים (סה"כ עלות, סה"כ קראט, אבנים), ומתחת כל ספק עם הסיכום שלו וכרטיס קטן לכל אבן. בכרטיס של כל אבן רואים את ה<b>עלות לקראט</b> – בדיוק המחיר שמדברים עליו מול הספק – והסכומים הכוללים נשארים בסיכום של הספק ובכרטיסים שלמעלה. אפשר להחליף נסיעה למעלה ולראות מיד את הסיכום שלה.</p>
   `,'preview',{tip:'כשאני בדרך בין לקוחות אני פותח בטלפון את התצוגה המהירה – מבט אחד ואני יודע בדיוק איפה אני עומד.'})}
 
   ${guideStep(10,'היסטוריית נסיעות',`
-    <p>בתפריט, מתחת ל‑<b>🏠 מסך המעקב</b>, יש <b>🧳 היסטוריית נסיעות</b>. שם רואים את <b>כל</b> הנסיעות יחד בטבלה אחת – לכל נסיעה מופיעים התאריך, מספר הספקים, מספר השורות, וכמה היו העלות, המכירה, הנמכר בפועל והרווח.</p>
-    <p>בתחתית יש <b>סיכום כולל של כל הנסיעות</b> – רואים במבט אחד כמה הרווחת בסך הכול. לחיצה על <b>פתח</b> ליד נסיעה מחזירה אליה במסך המעקב.</p>
-  `,'history',{tip:'זה המסך האהוב עליי – שורה אחת לכל נסיעה, ולמטה כמה יצא לי בסוף. נחת.'})}
+    <p>בתפריט, מתחת ל‑<b>🏠 מסך המעקב</b>, יש <b>🧳 היסטוריית נסיעות</b>. שם רואים את <b>כל</b> הנסיעות יחד בטבלה אחת – לכל נסיעה מופיעים התאריך, מספר הספקים, מספר השורות וסה"כ העלות.</p>
+    <p>בתחתית יש <b>סיכום כולל של כל הנסיעות</b> – רואים במבט אחד כמה קנית בסך הכול. לחיצה על <b>פתח</b> ליד נסיעה מחזירה אליה במסך המעקב.</p>
+  `,'history',{tip:'זה המסך האהוב עליי – שורה אחת לכל נסיעה, ולמטה כמה קניתי בסך הכול. נחת.'})}
 
   ${guideStep(11,'סטטיסטיקת ספקים',`
-    <p>בתפריט יש <b>📊 סטטיסטיקת ספקים</b> – לכל ספק, סיכום על פני <b>כל</b> הנסיעות. ככה רואים בקלות מי משתלם.</p>
+    <p>בתפריט יש <b>📊 סטטיסטיקת ספקים</b> – לכל ספק, סיכום של <b>מה קנית ממנו</b> על פני <b>כל</b> הנסיעות. ככה רואים בקלות אצל מי קונים הרבה, ובאיזה מחיר.</p>
     <ul>
-      <li><b>רווח ממומש</b> – כמה הרווחת בפועל מהאבנים שמכרת מאותו ספק.</li>
-      <li><b>אחוז מכירה</b> – כמה מהאבנים שקנית ממנו כבר נמכרו (כמה "זזות").</li>
-      <li><b>מרווח %</b> – אחוז הרווח על מה שנמכר.</li>
-      <li>וגם: עלות כוללת, עלות ממוצעת לקראט, ו<b>שווי שלא נמכר</b> (כמה כסף עוד "תקוע" אצלך מאותו ספק).</li>
+      <li><b>עלות כוללת</b> – כמה כסף השארת אצל הספק הזה בסך הכול.</li>
+      <li><b>עלות ממוצעת לקראט</b> – המחיר הממוצע שאתה משלם לו לקראט. נוח להשוואה בין ספקים.</li>
+      <li><b>סה"כ קראט</b> – כמה קראט קנית ממנו.</li>
+      <li>וגם: אבנים שנקנו, סה"כ אבנים, עלות ממוצעת לאבן, ומספר הנסיעות.</li>
     </ul>
-    <p>אפשר למיין לפי רווח / מרווח / אחוז מכירה, ולפתוח <b>לאורך זמן</b> כדי לראות איך כל נסיעה אצל הספק הסתדרה.</p>
-  `,'stats',{tip:'ככה אני יודע מאיזה ספק כדאי לי לקנות יותר – ומאיזה פחות. המספרים לא משקרים 😎'})}
+    <p>אפשר למיין לפי עלות כוללת / עלות לקראט / קראט / מספר אבנים / מספר נסיעות, ולפתוח <b>לאורך זמן</b> כדי לראות מה קנית ממנו בכל נסיעה.</p>
+  `,'stats',{tip:'ככה אני רואה מי נותן לי מחיר טוב לקראט – ואצל מי אני משלם יותר. המספרים לא משקרים 😎'})}
 
   ${guideStep(12,'הדפסה ושמירה כ‑PDF',`
     <p>בתפריט לוחצים <b>🖨️ הדפסה / PDF</b>. נפתח חלון הדפסה – אפשר להדפיס למדפסת, או לבחור ביעד "שמירה כ‑PDF" כדי לקבל קובץ.</p>
-    <p>בהדפסה מוצגות רק עמודות הקנייה (סריה, משקל, צורה, עלות, סה"כ עלות) – <b>מחירי המכירה והרווח אינם מודפסים</b>, כדי שאפשר למסור דף לספק בלי לחשוף רווחים.</p>
+    <p>הדף המודפס של <b>📊 סיכום כל הספקים</b> יוצא עם <b>הלוגו</b> למעלה, הטבלה באנגלית משמאל לימין, וסיכום אחד בסוף – מוכן למסור ללקוח או לספק.</p>
   `,null)}
 
   ${guideStep(13,'שליחה במייל',`

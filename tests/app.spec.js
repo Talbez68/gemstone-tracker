@@ -20,7 +20,7 @@ async function seed(page) {
         id: 't1', name: 'Test trip', date: '2026-07-03', activeId: 'v1',
         vendors: [{
           id: 'v1', name: 'ספק בדיקה', code: 'AB',
-          rows: [{ serial: 'AB-01', weight: '', stones: '', shape: '', cost: '', cert: '', notes: '', sale: '', sold: false }],
+          rows: [{ serial: 'AB-01', weight: '', stones: '', shape: '', cost: '', cert: '', notes: '' }],
         }],
       }],
     };
@@ -180,7 +180,7 @@ function remoteFile(savedAt, vendorName) {
     app: 'gemstone-tracker', savedAt,
     state: { currency: '$', savedAt, activeTripId: 't1', trips: [{
       id: 't1', name: 'Remote trip', date: '2026-07-03', activeId: 'v9',
-      vendors: [{ id: 'v9', name: vendorName, code: 'ZZ', rows: [{ serial: 'ZZ-01', weight: '1.5', stones: '1', shape: '', cost: '', cert: '', notes: '', sale: '', sold: false }] }],
+      vendors: [{ id: 'v9', name: vendorName, code: 'ZZ', rows: [{ serial: 'ZZ-01', weight: '1.5', stones: '1', shape: '', cost: '', cert: '', notes: '' }] }],
     }] },
   };
 }
@@ -203,7 +203,7 @@ test.describe('Gemstone tracker', () => {
     await expect(page.locator('table').first()).toBeVisible();
     // header carries the expected Hebrew columns, including the certificate column
     const header = (await page.locator('thead tr').last().locator('th').allInnerTexts()).join('|');
-    for (const col of ['סריה', 'משקל', 'צורה', 'תעודה', 'הערות', 'נמכר']) {
+    for (const col of ['סריה', 'משקל', 'צורה', 'תעודה', 'הערות']) {
       expect(header, `header should contain ${col}`).toContain(col);
     }
     expect(errors, 'no console/page errors on load').toEqual([]);
@@ -225,7 +225,7 @@ test.describe('Gemstone tracker', () => {
     await seed(page);
     await page.goto(APP_URL);
     const row = page.locator('tbody tr').first();
-    const nums = row.locator('input.num'); // order: weight, stones, cost, sale
+    const nums = row.locator('input.num'); // order: weight, stones, cost
     await nums.nth(0).fill('2');
     await nums.nth(2).fill('100');
     await expect(row.locator('td.auto[data-auto="totCost"]')).toContainText('200');
@@ -323,7 +323,7 @@ test.describe('Gemstone tracker', () => {
 
   test('already-imported float noise is cleaned up on load', async ({ page }) => {
     await page.addInitScript((key) => {
-      const row = (over) => ({ serial: 'AB-01', weight: '', stones: '1', shape: '', cost: '', cert: '', notes: '', sale: '', sold: false, ...over });
+      const row = (over) => ({ serial: 'AB-01', weight: '', stones: '1', shape: '', cost: '', cert: '', notes: '', ...over });
       localStorage.setItem(key, JSON.stringify({
         currency: '$', activeTripId: 't1',
         trips: [{ id: 't1', name: 'Test trip', date: '2026-07-03', activeId: 'v1',
@@ -360,7 +360,7 @@ test.describe('Gemstone tracker', () => {
       });
       return 0.2126 * r + 0.7152 * g + 0.0722 * b;
     };
-    const styles = await page.evaluate(() => ['band-taken', 'band-sales'].map((cls) => {
+    const styles = await page.evaluate(() => ['band-taken'].map((cls) => {
       const el = document.querySelector('.band .' + cls), cs = getComputedStyle(el);
       return { text: el.textContent.trim(), color: cs.color, bg: cs.backgroundColor };
     }));
@@ -418,7 +418,7 @@ test.describe('Gemstone tracker', () => {
 
     const header = (await panel.locator('.sum-table thead th').allInnerTexts()).join('|');
     for (const col of ['#', 'Serial', 'Weight (ct)', 'Stones', 'Shape', 'Cost / ct',
-                       'Total Cost', 'Cert', 'Notes', 'Sale / ct', 'Total Sale', 'Sold']) {
+                       'Total Cost', 'Cert', 'Notes']) {
       expect(header, `header should contain ${col}`).toContain(col);
     }
     await expect(panel.locator('.sum-table tfoot')).toContainText('Total — all vendors');
@@ -435,12 +435,69 @@ test.describe('Gemstone tracker', () => {
       (el) => getComputedStyle(el).display)).toBe('table-row-group');
     await page.emulateMedia({ media: null });
 
-    // it reads left-to-right: '#' sits to the left of 'Sold'
+    // it reads left-to-right: '#' sits to the left of 'Notes'
     expect(await panel.locator('.sum-panel, .sum-table').first().evaluate(
       (el) => getComputedStyle(el).direction)).toBe('ltr');
     const first = await panel.locator('.sum-table thead th').first().boundingBox();
     const last = await panel.locator('.sum-table thead th').last().boundingBox();
-    expect(first.x, '# column is left of the Sold column').toBeLessThan(last.x);
+    expect(first.x, '# column is left of the Notes column').toBeLessThan(last.x);
+  });
+
+  // he buys, he does not track what he sold — there is no selling side to the app
+  test('nothing about selling is left anywhere in the app', async ({ page }) => {
+    const errors = trackErrors(page);
+    await seed(page);
+    await page.goto(APP_URL);
+
+    // no sale columns, no ✔ sold checkbox, no מכירות band
+    const header = (await page.locator('thead tr').last().locator('th').allInnerTexts()).join('|');
+    for (const gone of ['מכירה', 'נמכר', 'רווח']) {
+      expect(header, `header must not mention ${gone}`).not.toContain(gone);
+    }
+    expect(await page.locator('.band .band-sales').count()).toBe(0);
+    expect(await page.locator('td.col-sold, tbody input[type=checkbox]').count()).toBe(0);
+    expect(await page.evaluate(() => typeof rowSale)).toBe('undefined');
+    expect(await page.evaluate(() => COLS.map((c) => c.key)))
+      .toEqual(['serial', 'weight', 'stones', 'shape', 'cost', 'totCost', 'cert', 'notes']);
+
+    // a new row carries buying fields only
+    expect(await page.evaluate(() => Object.keys(blankRow())))
+      .toEqual(['serial', 'weight', 'stones', 'shape', 'cost', 'cert', 'notes']);
+
+    // every screen is free of selling words
+    for (const view of ['tracker', 'preview', 'history', 'stats', 'guide']) {
+      await page.evaluate((v) => showView(v), view);
+      const txt = await page.locator('main').innerText();
+      for (const gone of ['מכירה', 'נמכר', 'רווח', 'מרווח']) {
+        expect(txt, `${view} must not mention ${gone}`).not.toContain(gone);
+      }
+    }
+    expect(errors, 'no console/page errors').toEqual([]);
+  });
+
+  test('the vendor statistics page reports what he bought', async ({ page }) => {
+    await page.addInitScript((key) => {
+      const row = (serial, weight, cost) =>
+        ({ serial, weight, stones: '1', shape: 'Round', cost, cert: '', notes: '' });
+      localStorage.setItem(key, JSON.stringify({
+        currency: '$', activeTripId: 't1',
+        trips: [{ id: 't1', name: 'Test trip', date: '2026-07-03', activeId: 'v1',
+          vendors: [{ id: 'v1', name: 'ספק בדיקה', code: 'AB',
+            rows: [row('AB-01', '2', '300'), row('AB-02', '3', '100')] }] }],
+      }));
+    }, STORAGE_KEY);
+    await page.goto(APP_URL);
+    await page.evaluate(() => showView('stats'));
+
+    const card = page.locator('.st-vendor').first();
+    // 2×300 + 3×100 = 900 over 5 ct  ->  180 per carat, 450 per stone
+    await expect(card.locator('.st-headline')).toContainText('$ 900');
+    await expect(card.locator('.st-headline')).toContainText('$ 180');
+    await expect(card.locator('.st-headline')).toContainText('5');
+    await expect(card.locator('.st-grid')).toContainText('$ 450');
+    // sorting offers buying measures only
+    const opts = await page.locator('.st-sort select option').allInnerTexts();
+    expect(opts).toEqual(['עלות כוללת', 'עלות לקראט', 'סה"כ קראט', 'מספר אבנים', 'מספר נסיעות']);
   });
 });
 
@@ -499,7 +556,7 @@ test.describe('Google Drive sync', () => {
       localStorage.setItem(key, JSON.stringify({
         currency: '$', savedAt: '2026-08-16T12:00:00.000Z', activeTripId: 't1',
         trips: [{ id: 't1', name: 'Newer local', date: '2026-07-03', activeId: 'v1',
-          vendors: [{ id: 'v1', name: 'ספק חדש יותר', code: 'AB', rows: [{ serial: 'AB-01', weight: '2', stones: '1', shape: '', cost: '', cert: '', notes: '', sale: '', sold: false }] }] }],
+          vendors: [{ id: 'v1', name: 'ספק חדש יותר', code: 'AB', rows: [{ serial: 'AB-01', weight: '2', stones: '1', shape: '', cost: '', cert: '', notes: '' }] }] }],
       }));
     }, STORAGE_KEY);
     await stubDrive(page, remoteFile('2026-08-16T09:00:00.000Z', 'ספק ישן'));
@@ -521,7 +578,7 @@ test.describe('Google Drive sync', () => {
     await page.evaluate(() => {
       Object.values(window.__drive.files).find((f) => f.name === 'gemstones.json').body = JSON.stringify({ app: 'gemstone-tracker', savedAt: '2099-01-01T00:00:00.000Z',
         state: { currency: '$', savedAt: '2099-01-01T00:00:00.000Z', activeTripId: 't1', trips: [{ id: 't1', name: 'From phone', date: '2026-07-03', activeId: 'v9',
-          vendors: [{ id: 'v9', name: 'ספק מהטלפון', code: 'ZZ', rows: [{ serial: 'ZZ-01', weight: '1', stones: '1', shape: '', cost: '', cert: '', notes: '', sale: '', sold: false }] }] }] } });
+          vendors: [{ id: 'v9', name: 'ספק מהטלפון', code: 'ZZ', rows: [{ serial: 'ZZ-01', weight: '1', stones: '1', shape: '', cost: '', cert: '', notes: '' }] }] }] } });
       Object.values(window.__drive.files).find((f) => f.name === 'gemstones.json').modifiedTime = 'tPhone';
     });
     // this tab now edits and pushes – it must back off and take the newer copy instead
@@ -731,7 +788,7 @@ test.describe('Google Drive sync', () => {
     await page.evaluate(async () => {
       const old = { app: 'gemstone-tracker', savedAt: '2026-01-02T00:00:00.000Z',
         state: { currency: '$', savedAt: '2026-01-02T00:00:00.000Z', activeTripId: 't1', trips: [{ id: 't1', name: 'Old trip', date: '2026-01-02', activeId: 'v1',
-          vendors: [{ id: 'v1', name: 'ספק שנמחק', code: 'AB', rows: [{ serial: 'AB-01', weight: '9', stones: '1', shape: '', cost: '', cert: '', notes: '', sale: '', sold: false }] }] }] } };
+          vendors: [{ id: 'v1', name: 'ספק שנמחק', code: 'AB', rows: [{ serial: 'AB-01', weight: '9', stones: '1', shape: '', cost: '', cert: '', notes: '' }] }] }] } };
       const all = Object.values(window.__drive.files);
       const root = all.find((f) => f.name === 'מעקב אבני חן');
       const folder = all.find((f) => f.name === 'backups' && (f.parents || []).includes(root.id))
