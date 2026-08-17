@@ -222,6 +222,9 @@
     .print-only{display:block!important}
     .sum-head{margin-bottom:10px}
     .sum-logo{width:52mm}
+    /* a tfoot repeats under every printed page; the grand total belongs once, at the end */
+    .sum-table tfoot{display:table-row-group}
+    .sum-table tfoot tr{page-break-inside:avoid}
     .totals{margin-top:12px}
     .card{border:1px solid #999}
     .summary-vendor{page-break-inside:avoid}
