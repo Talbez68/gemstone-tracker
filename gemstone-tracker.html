@@ -218,9 +218,6 @@
     .print-only{display:block!important}
     .sum-head{margin-bottom:10px}
     .sum-logo{width:52mm}
-    /* a tfoot repeats under every printed page; the grand total belongs once, at the end */
-    .sum-table tfoot{display:table-row-group}
-    .sum-table tfoot tr{page-break-inside:avoid}
     .totals{margin-top:12px}
     .card{border:1px solid #999}
     .summary-vendor{page-break-inside:avoid}
@@ -299,8 +296,6 @@
   .sum-table thead th{background:var(--soft); color:var(--accent-d); font-weight:700; position:static; font-size:14px}
   .sum-table tbody tr:nth-child(even){background:#fbfaf6}
   .sum-table td.auto{background:var(--auto); font-weight:700; color:var(--accent-d)}
-  .sum-table tfoot td{background:#f1ede3; font-weight:800; color:var(--accent-d); padding:11px 8px}
-  .sum-table tfoot .lbl{text-align:left; color:var(--accent-d)}
   /* friendly mobile preview */
   .preview-view{padding:6px 4px 60px; max-width:760px; margin:0 auto}
   .pv-head{margin:8px 4px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap}
@@ -803,11 +798,6 @@ function buildSummary(trip){
     });
   });
   table.appendChild(tb);
-  const tf=document.createElement('tfoot');
-  tf.innerHTML=`<tr><td class="lbl" colspan="2">Total — all vendors</td>
-    <td>${fmtNum(gWt)}</td><td class="col-stones">${fmtNum(gStones)}</td><td></td><td></td>
-    <td class="auto">${fmtMoney(gCost)}</td><td></td><td></td></tr>`;
-  table.appendChild(tf);
 
   if(gRows===0){
     const e=document.createElement('div'); e.className='empty';
@@ -818,7 +808,7 @@ function buildSummary(trip){
   hydrateCertThumbs(table);
   const g=document.createElement('div'); g.className='totals'; g.style.marginTop='24px';
   g.innerHTML=`
-    <div class="card no-print"><div class="k">Total Stones</div><div class="v">${fmtNum(gStones)}</div></div>
+    <div class="card"><div class="k">Total Stones</div><div class="v">${fmtNum(gStones)}</div></div>
     <div class="card"><div class="k">Total Carats</div><div class="v">${fmtNum(gWt)}</div></div>
     <div class="card"><div class="k">Total Cost</div><div class="v">${fmtMoney(gCost)}</div></div>`;
   wrap.appendChild(g);

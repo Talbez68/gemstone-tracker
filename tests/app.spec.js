@@ -421,18 +421,24 @@ test.describe('Gemstone tracker', () => {
                        'Total Cost', 'Cert', 'Notes']) {
       expect(header, `header should contain ${col}`).toContain(col);
     }
-    await expect(panel.locator('.sum-table tfoot')).toContainText('Total — all vendors');
-    await expect(panel.locator('.totals')).toContainText('Total Carats');
+    // the totals live in the cards alone — the table carries rows, no footer
+    await expect(panel.locator('.sum-table tfoot')).toHaveCount(0);
+    for (const card of ['Total Stones', 'Total Carats', 'Total Cost']) {
+      await expect(panel.locator('.totals')).toContainText(card);
+    }
 
     // nothing but the logo above the table — no trip label, no heading
     await expect(panel.locator('.sum-head')).toHaveText('');
     // and no Hebrew anywhere on the sheet
     expect(await panel.innerText()).not.toMatch(/[֐-׿]/);
 
-    // a tfoot repeats under every printed page, so the grand total must not be one
+    // all three totals reach paper: none of the cards is hidden in print, and with
+    // no tfoot there is no footer left to repeat under every page
     await page.emulateMedia({ media: 'print' });
-    expect(await panel.locator('.sum-table tfoot').evaluate(
-      (el) => getComputedStyle(el).display)).toBe('table-row-group');
+    await expect(panel.locator('.totals .card')).toHaveCount(3);
+    for (const card of ['Total Stones', 'Total Carats', 'Total Cost']) {
+      await expect(panel.locator('.totals .card', { hasText: card })).toBeVisible();
+    }
     await page.emulateMedia({ media: null });
 
     // it reads left-to-right: '#' sits to the left of 'Notes'
