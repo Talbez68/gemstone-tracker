@@ -20,8 +20,8 @@ combines everyone — like the old `Main` sheet.
 - **משלוח — a shipping invoice per trip.** 📦 prints the company's invoice form,
   logo and all, for the selected trip. It always carries **one line**: the trip's
   total carats and total USD, described as `POLISHED DIAMONDS`. The **To** block is
-  free text — whatever the consignee's details happen to be; it is saved with the
-  trip and prefills the next one. The **invoice number runs on by itself**, carrying
+  free text — whatever the consignee's details happen to be. It starts **empty** on
+  each trip's first invoice and is saved with that trip. The **invoice number runs on by itself**, carrying
   on from the invoices already written by hand (64910 → 64911, 64912 …): a trip is
   issued its number the first time its form is opened, and keeps it. The **date is
   the day the invoice was generated**, frozen from then on — he can still correct it
