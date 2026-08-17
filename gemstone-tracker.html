@@ -392,6 +392,7 @@
   .ship-meta .f{display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-bottom:12px; white-space:nowrap}
   .ship-meta input{width:132px; padding:4px 6px; border:1px solid var(--line); border-radius:6px;
     background:#fff; color:#000; font-family:inherit; font-size:13px}
+  .ship-num{font-weight:700}   /* issued by the app, so it is text and not a field */
   .print-val{display:none}
   .ship-table{width:100%; border-collapse:collapse; font-size:13px}
   /* plain black-on-white, unlike the app's own tables: this is a printed form */
@@ -902,8 +903,8 @@ function duplicateTrip(){
   const copy=JSON.parse(JSON.stringify(src));
   copy.id=rid('t'); copy.name=name.trim()||src.name+' (עותק)'; copy.date=today();
   copy.activeId=copy.vendors[0]?.id||null;
-  // the consignee carries over, but a shipment of its own needs its own number and date
-  if(copy.shipment){ copy.shipment.number=''; copy.shipment.date=copy.date; }
+  // the consignee carries over; the invoice itself is re-issued when the copy's form is opened
+  if(copy.shipment){ copy.shipment.number=''; copy.shipment.date=''; }
   // keep vendor structure but clear filled data so it's a fresh trip with same vendors
   if(confirm('לרוקן את הנתונים בעותק ולהשאיר רק את שמות הספקים?\n(אישור = ספקים בלבד · ביטול = להעתיק גם את כל הנתונים)')){
     copy.vendors.forEach(v=>{ v.id=rid('v'); v.rows=[blankRow()]; if(v.code) v.rows[0].serial=makeSerial(v.code,1); });
@@ -1991,8 +1992,8 @@ function buildHistory(){
 /* ============================================================
    משלוח — the shipping invoice, one per trip.
    Always a single line: the trip's total carats, its total USD, and the
-   fixed description "POLISHED DIAMONDS". Only the consignee ("To"), the
-   invoice number and the invoice date are his to fill in.
+   fixed description "POLISHED DIAMONDS". The consignee ("To") is free text
+   and the date can be corrected; the number is the app's own running one.
    ============================================================ */
 const SHIP_FROM = ['MACCABI BLDG #2049 1 JABUTINSKY ST','5252001 RAMAT GAN','ISRAEL','054-3972890'];
 const SHIP_LICENSE = '012470670';
@@ -2001,12 +2002,23 @@ const SHIP_DESC    = 'POLISHED DIAMONDS';
 const SHIP_TO_DEFAULT = 'D And J EXPRESS LLC\n48TH STREET 64W FLOOR 16 EIN#61-1813008\n10036 New York\nNY\nU.S.A.\nTel: 8473870875';
 const SHIP_KP = 'The diamonds herein invoiced have been purchased from legitimate sources not involved in funding conflict and in compliance with united nations resolutions. The seller hereby guarantees that these diamonds are conflict free, based on personal knowledge and/or written guarantees provide by the supplier of these diamonds';
 
-/* the trip's invoice details, created on first use */
+/* invoice numbers carry on from the last one issued on paper (64910 -> 64911, 64912 ...) */
+const SHIP_NO_FROM = 64910;
+
+/* The trip's invoice, issued the first time its form is opened: it takes the
+   next running number and is stamped with that day's date, both kept from then
+   on — a reprint next month still shows the day it was generated. */
 function shipment(trip){
   const s = trip.shipment || (trip.shipment={});
-  if(s.number==null) s.number='';
-  if(!s.date) s.date=trip.date||today();
   if(s.to==null) s.to=state.shipTo||SHIP_TO_DEFAULT;   // whoever he shipped to last
+  if(!s.number){
+    const last=num(state.lastInvoiceNo);
+    state.lastInvoiceNo = (last>=SHIP_NO_FROM ? last : SHIP_NO_FROM) + 1;
+    s.number=String(state.lastInvoiceNo);
+    s.date=today();
+    save();
+  }
+  if(!s.date) s.date=today();
   return s;
 }
 function shipTotals(trip){
@@ -2061,10 +2073,8 @@ function buildShipment(){
           </div>
           <div class="ship-meta">
             <div class="f"><span>Invoice Number:</span>
-              <input id="shipNum" class="no-print" value="${escapeHtml(s.number)}" placeholder="—"
-                title="מספר החשבונית"
-                oninput="setShipField('number',this.value); $('shipNumOut').textContent=this.value">
-              <span class="print-val" id="shipNumOut">${escapeHtml(s.number)}</span></div>
+              <span class="ship-num" id="shipNum"
+                title="מספר החשבונית – רץ לבד, אחד אחרי השני. אין מה למלא ואי אפשר לשנות.">${escapeHtml(s.number)}</span></div>
             <div class="f"><span>Invoice Date:</span>
               <input id="shipDate" class="no-print" type="date" value="${escapeHtml(s.date)}"
                 title="תאריך החשבונית"
@@ -2224,7 +2234,8 @@ function buildGuide(){
       <li>בחשבונית תמיד יש <b>שורה אחת בלבד</b>: <b>סה"כ הקראט</b> ו<b>סה"כ הדולר</b> של כל הנסיעה יחד (כל הספקים), והתיאור בה הוא תמיד <b>POLISHED DIAMONDS</b>.</li>
       <li>הסכומים מתעדכנים לבד מהטבלאות – אין מה למלא ואין מה לחשב.</li>
       <li>בתיבת <b>To</b> כותבים את פרטי הנמען – <b>טקסט חופשי</b>, בכמה שורות שצריך. מה שנכתב נשמר לנסיעה, ומופיע מוכן גם בנסיעה הבאה.</li>
-      <li>ממלאים <b>Invoice Number</b> ו‑<b>Invoice Date</b> (התאריך מגיע מהנסיעה, ואפשר לשנות).</li>
+      <li><b>Invoice Number</b> – <b>מספר רץ</b> שהאפליקציה נותנת לבד, אחד אחרי השני (ממשיך מהחשבוניות הקיימות: 64911, 64912 ...). כל נסיעה מקבלת מספר משלה <b>בפעם הראשונה</b> שנפתחת אצלה החשבונית, והוא נשאר שלה. אין מה למלא, ואי אפשר לשנות בטעות.</li>
+      <li><b>Invoice Date</b> – התאריך שבו נוצרה החשבונית. הוא <b>לא</b> משתנה אחר כך, גם אם מדפיסים שוב בעוד חודש; אם בכל זאת צריך תאריך אחר, אפשר לשנות אותו ביד.</li>
       <li>לוחצים <b>🖨️ הדפסה / PDF</b> – יוצא בדיוק הטופס, בלי התפריטים ובלי המסגרות של המסך.</li>
     </ul>
   `,null,{tip:'שורה אחת, סה"כ קראט וסה"כ דולר – בדיוק מה שהשליח צריך. מדפיס ויוצא לדרך 😎'})}

@@ -569,14 +569,13 @@ test.describe('Shipment invoice (משלוח)', () => {
     // the box opens tall enough for every line of it, nothing scrolled out of sight
     expect(await to.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(2);
     await to.fill('SOME OTHER SHIPPER\nLINE TWO\nLINE THREE');
-    await page.locator('#shipNum').fill('64911');
-    await page.locator('#shipDate').fill('2026-08-17');
+    await page.locator('#shipDate').fill('2026-08-20');               // the date he may still correct
 
     await expect.poll(async () => page.evaluate((key) => {
       const s = JSON.parse(localStorage.getItem(key)), sh = s.trips[0].shipment || {};
-      return [sh.to, sh.number, sh.date, s.shipTo];
+      return [sh.to, sh.date, s.shipTo];
     }, STORAGE_KEY)).toEqual([
-      'SOME OTHER SHIPPER\nLINE TWO\nLINE THREE', '64911', '2026-08-17',
+      'SOME OTHER SHIPPER\nLINE TWO\nLINE THREE', '2026-08-20',
       'SOME OTHER SHIPPER\nLINE TWO\nLINE THREE',
     ]);
 
@@ -584,10 +583,54 @@ test.describe('Shipment invoice (משלוח)', () => {
     await page.locator('#navTracker').click();
     await page.locator('#navShip').click();
     await expect(page.locator('#shipTo')).toHaveValue('SOME OTHER SHIPPER\nLINE TWO\nLINE THREE');
-    await expect(page.locator('#shipNum')).toHaveValue('64911');
+    await expect(page.locator('#shipDate')).toHaveValue('2026-08-20');
     // the box grew to hold all three lines instead of clipping them
     const box = page.locator('#shipTo');
     expect(await box.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(2);
+  });
+
+  // the number is the app's own, carrying on from the invoices already written by hand
+  test('the invoice number runs on by itself and cannot be typed over', async ({ page }) => {
+    await seedTrip(page);
+    await page.goto(APP_URL);
+    await page.locator('#navShip').click();
+
+    await expect(page.locator('#shipNum')).toHaveText('64911');       // 64910 was the last one on paper
+    expect(await page.locator('#shipNum').evaluate((el) => el.tagName)).not.toBe('INPUT');
+    await expect(page.locator('.ship-meta input#shipNum')).toHaveCount(0);
+
+    // the same trip keeps its number; a second trip takes the next one
+    await page.locator('#navTracker').click();
+    await page.locator('#navShip').click();
+    await expect(page.locator('#shipNum')).toHaveText('64911');
+
+    page.on('dialog', (d) => (d.type() === 'prompt' ? d.accept('Second trip') : d.dismiss()));
+    await page.evaluate(() => addTrip());
+    await page.locator('#navShip').click();
+    await expect(page.locator('#shipNum')).toHaveText('64912');
+
+    // and back on the first trip, still 64911
+    await page.evaluate(() => { state.activeTripId = state.trips[0].id; save(); render(); showView('ship'); });
+    await expect(page.locator('#shipNum')).toHaveText('64911');
+    expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)).lastInvoiceNo, STORAGE_KEY)).toBe(64912);
+  });
+
+  // "the date of the invoice generation": stamped once, and it stays put
+  test('the date is the day the invoice was generated, and stays frozen', async ({ page }) => {
+    await seedTrip(page);
+    await page.goto(APP_URL);
+    await page.locator('#navShip').click();
+
+    const todayISO = await page.evaluate(() => today());
+    await expect(page.locator('#shipDate')).toHaveValue(todayISO);    // not the trip's own date
+    expect(todayISO).not.toBe('2026-07-03');
+
+    // a later visit does not re-stamp it: pretend the invoice was generated last month
+    await page.evaluate(() => { activeTrip().shipment.date = '2026-06-01'; save(); });
+    await page.locator('#navTracker').click();
+    await page.locator('#navShip').click();
+    await expect(page.locator('#shipDate')).toHaveValue('2026-06-01');
+    await expect(page.locator('#shipDateOut')).toHaveText('01-06-2026');
   });
 
   test('printing gives the plain form: no app chrome, date as text', async ({ page }) => {
@@ -602,24 +645,25 @@ test.describe('Shipment invoice (משלוח)', () => {
       await expect(page.locator(chrome).first(), `${chrome} must not print`).toBeHidden();
     }
     // the date prints as plain text, not as a browser date picker
+    const [y, m, d] = (await page.evaluate(() => today())).split('-');
     await expect(page.locator('#shipDateOut')).toBeVisible();
-    await expect(page.locator('#shipDateOut')).toHaveText('03-07-2026');
+    await expect(page.locator('#shipDateOut')).toHaveText(`${d}-${m}-${y}`);
+    await expect(page.locator('#shipNum')).toBeVisible();             // the number prints too
     await page.emulateMedia({ media: null });
   });
 
-  test('a duplicated trip keeps the consignee but not the invoice number', async ({ page }) => {
+  test('a duplicated trip keeps the consignee but is issued its own invoice', async ({ page }) => {
     await seedTrip(page);
     await page.goto(APP_URL);
     await page.locator('#navShip').click();
-    await page.locator('#shipNum').fill('64911');
-    await expect.poll(async () => page.evaluate((key) =>
-      (JSON.parse(localStorage.getItem(key)).trips[0].shipment || {}).number, STORAGE_KEY)).toBe('64911');
+    await page.locator('#shipTo').fill('SOME OTHER SHIPPER');
+    await expect(page.locator('#shipNum')).toHaveText('64911');
 
     page.on('dialog', (d) => (d.type() === 'prompt' ? d.accept('Copy trip') : d.accept()));
     await page.evaluate(() => duplicateTrip());
     await page.locator('#navShip').click();
-    await expect(page.locator('#shipNum')).toHaveValue('');
-    await expect(page.locator('#shipTo')).toHaveValue(/D And J EXPRESS LLC/);
+    await expect(page.locator('#shipNum')).toHaveText('64912');       // never a second invoice 64911
+    await expect(page.locator('#shipTo')).toHaveValue('SOME OTHER SHIPPER');
   });
 });
 
