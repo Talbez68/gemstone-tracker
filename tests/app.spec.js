@@ -401,6 +401,32 @@ test.describe('Gemstone tracker', () => {
       page.evaluate((key) => JSON.parse(localStorage.getItem(key)).trips[0].vendors[0].rows[0].weight, STORAGE_KEY),
     ).toBe('1.75');
   });
+
+  // the all-vendors summary is the sheet he shows other people: company logo for a
+  // heading (screen and print alike) and English column names
+  test('the all-vendors summary is headed by the logo and labelled in English', async ({ page }) => {
+    await seed(page);
+    await page.goto(APP_URL);
+    const nums = page.locator('tbody tr').first().locator('input.num');
+    await nums.nth(0).fill('2');
+    await nums.nth(2).fill('300');
+    await page.locator('.tab.summary').click();
+
+    const panel = page.locator('.panel');
+    await expect(panel.locator('.sum-logo')).toBeVisible();          // not print-only
+    await expect(panel.locator('.vendor-head h2')).toHaveCount(0);   // Hebrew heading gone
+
+    const header = (await panel.locator('.sum-table thead th').allInnerTexts()).join('|');
+    for (const col of ['#', 'Serial', 'Weight (ct)', 'Stones', 'Shape', 'Cost / ct',
+                       'Total Cost', 'Cert', 'Notes', 'Sale / ct', 'Total Sale', 'Sold']) {
+      expect(header, `header should contain ${col}`).toContain(col);
+    }
+    await expect(panel.locator('.sum-table tfoot')).toContainText('Total — all vendors');
+    await expect(panel.locator('.totals')).toContainText('Total Carats');
+
+    // the trip name is his own text and stays as he typed it
+    await expect(panel.locator('.sum-head .d')).toContainText('Test trip');
+  });
 });
 
 // Google OAuth refuses file:// origins, so the Drive tests run over http://localhost.

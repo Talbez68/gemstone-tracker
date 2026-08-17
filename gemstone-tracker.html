@@ -220,6 +220,9 @@
     th,td{border:1px solid #999}
     tbody td input,tbody td select{padding:4px 3px; font-size:12px}
     .print-only{display:block!important}
+    .sum-head{margin-bottom:10px}
+    .sum-logo{width:52mm; margin-bottom:4px}
+    .sum-head .d{font-size:13px}
     .totals{margin-top:12px}
     .card{border:1px solid #999}
     .summary-vendor{page-break-inside:avoid}
@@ -229,8 +232,10 @@
   .print-title{text-align:center; margin-bottom:10px}
   .print-title h2{margin:0; font-size:20px}
   .print-title .d{color:#666; font-size:13px}
-  /* company logo on the printed summary sheet */
-  .print-logo{display:block; margin:0 auto 4px; width:52mm; height:auto}
+  /* the all-vendors summary is headed by the company logo, on screen and on paper */
+  .sum-head{text-align:center; margin-bottom:16px}
+  .sum-logo{display:block; margin:0 auto 6px; width:270px; max-width:100%; height:auto}
+  .sum-head .d{color:var(--muted); font-size:15px}
 
   /* ---------- Layout with right-side menu ---------- */
   .layout{display:flex; align-items:flex-start}
@@ -793,20 +798,17 @@ function totalsCards(v){
 /* ----- summary (Main) ----- */
 function buildSummary(trip){
   const wrap=document.createElement('div'); wrap.className='panel';
-  const pt=document.createElement('div'); pt.className='print-only print-title';
-  // printed sheet gets the company logo instead of the on-screen heading
-  pt.innerHTML=`<img class="print-logo" src="${BMD_LOGO}" alt="Bezalel Moshe Diamonds"><div class="d">${escapeHtml(tripLabel(trip))}</div>`;
-  wrap.appendChild(pt);
 
-  const head=document.createElement('div'); head.className='vendor-head no-print';
-  head.innerHTML=`<h2>📊 סיכום כל הספקים</h2><span class="meta">${escapeHtml(tripLabel(trip))}</span>`;
+  // the company logo stands in for a heading here, on screen and on paper alike
+  const head=document.createElement('div'); head.className='sum-head';
+  head.innerHTML=`<img class="sum-logo" src="${BMD_LOGO}" alt="Bezalel Moshe Diamonds"><div class="d">${escapeHtml(tripLabel(trip))}</div>`;
   wrap.appendChild(head);
 
   let gCost=0,gSale=0,gSold=0,gStones=0,gWt=0,gRows=0,idx=0;
   const table=document.createElement('table'); table.className='sum-table';
   table.innerHTML=`<thead><tr>
-    <th>מספר</th><th>סריה</th><th>משקל</th><th class="col-stones">מספר אבנים</th><th>צורה</th>
-    <th>עלות לקראט</th><th>סה"כ עלות</th><th>תעודה</th><th>הערות</th><th class="sales-col">מכירה לקראט</th><th class="sales-col">סה"כ מכירה</th><th class="sales-col">נמכר</th>
+    <th>#</th><th>Serial</th><th>Weight (ct)</th><th class="col-stones">Stones</th><th>Shape</th>
+    <th>Cost / ct</th><th>Total Cost</th><th>Cert</th><th>Notes</th><th class="sales-col">Sale / ct</th><th class="sales-col">Total Sale</th><th class="sales-col">Sold</th>
   </tr></thead>`;
   const tb=document.createElement('tbody');
   trip.vendors.forEach(v=>{
@@ -827,25 +829,25 @@ function buildSummary(trip){
   });
   table.appendChild(tb);
   const tf=document.createElement('tfoot');
-  tf.innerHTML=`<tr><td class="lbl" colspan="2">סה"כ כל הספקים</td>
+  tf.innerHTML=`<tr><td class="lbl" colspan="2">Total — all vendors</td>
     <td>${fmtNum(gWt)}</td><td class="col-stones">${fmtNum(gStones)}</td><td></td><td></td>
     <td class="auto">${fmtMoney(gCost)}</td><td></td><td></td><td class="sales-col"></td><td class="auto sales-col">${fmtMoney(gSale)}</td><td class="sales-col"></td></tr>`;
   table.appendChild(tf);
 
   if(gRows===0){
     const e=document.createElement('div'); e.className='empty';
-    e.innerHTML='עדיין אין נתונים בנסיעה הזו. עברו ללשונית של ספק והתחילו למלא 💎';
+    e.innerHTML='No data in this trip yet. Open a vendor tab and start filling it in 💎';
     wrap.appendChild(e); return wrap;
   }
   const sc=document.createElement('div'); sc.className='table-scroll'; sc.appendChild(table); wrap.appendChild(sc);
   hydrateCertThumbs(table);
   const g=document.createElement('div'); g.className='totals'; g.style.marginTop='24px';
   g.innerHTML=`
-    <div class="card no-print"><div class="k">סה"כ אבנים</div><div class="v">${fmtNum(gStones)}</div></div>
-    <div class="card"><div class="k">סה"כ קראט</div><div class="v">${fmtNum(gWt)}</div></div>
-    <div class="card"><div class="k">סה"כ עלות</div><div class="v">${fmtMoney(gCost)}</div></div>
-    <div class="card sales-card"><div class="k">סה"כ מכירה (פוטנציאל)</div><div class="v">${fmtMoney(gSale)}</div></div>
-    <div class="card profit sales-card"><div class="k">רווח כולל</div><div class="v">${fmtMoney(gSale-gCost)}</div></div>`;
+    <div class="card no-print"><div class="k">Total Stones</div><div class="v">${fmtNum(gStones)}</div></div>
+    <div class="card"><div class="k">Total Carats</div><div class="v">${fmtNum(gWt)}</div></div>
+    <div class="card"><div class="k">Total Cost</div><div class="v">${fmtMoney(gCost)}</div></div>
+    <div class="card sales-card"><div class="k">Total Sale (potential)</div><div class="v">${fmtMoney(gSale)}</div></div>
+    <div class="card profit sales-card"><div class="k">Total Profit</div><div class="v">${fmtMoney(gSale-gCost)}</div></div>`;
   wrap.appendChild(g);
   return wrap;
 }
