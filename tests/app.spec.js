@@ -387,8 +387,9 @@ test.describe('Gemstone tracker', () => {
       expect(text, `guide should not mention ${gone}`).not.toContain(gone);
     }
     // the sync step carries both screenshots
-    const shots = await page.locator('.guide-step').nth(16).locator('img.guide-shot').count();
-    expect(shots).toBe(2);
+    const syncStep = page.locator('.guide-step', { has: page.locator('h3', { hasText: 'סנכרון בין המחשב לטלפון' }) });
+    await expect(syncStep).toHaveCount(1);
+    expect(await syncStep.locator('img.guide-shot').count()).toBe(2);
     expect(await page.evaluate(() => Object.keys(GUIDE_IMG))).toEqual(expect.arrayContaining(['drive', 'driveoff', 'backup']));
   });
 
@@ -504,6 +505,121 @@ test.describe('Gemstone tracker', () => {
     // sorting offers buying measures only
     const opts = await page.locator('.st-sort select option').allInnerTexts();
     expect(opts).toEqual(['עלות כוללת', 'עלות לקראט', 'סה"כ קראט', 'מספר אבנים', 'מספר נסיעות']);
+  });
+});
+
+// משלוח — one shipping invoice per trip, always a single line
+test.describe('Shipment invoice (משלוח)', () => {
+  // two vendors, so the single line has to add up across the whole trip:
+  // 2×300 + 3×100 = 900 over 5 ct, and 1.5×200 = 300 over 1.5 ct  ->  6.5 ct / 1,200.00
+  async function seedTrip(page) {
+    await page.addInitScript((key) => {
+      const row = (serial, weight, cost) =>
+        ({ serial, weight, stones: '1', shape: 'Round', cost, cert: '', notes: '' });
+      localStorage.setItem(key, JSON.stringify({
+        currency: '$', activeTripId: 't1',
+        trips: [{ id: 't1', name: 'Test trip', date: '2026-07-03', activeId: 'v1',
+          vendors: [
+            { id: 'v1', name: 'ספק בדיקה', code: 'AB', rows: [row('AB-01', '2', '300'), row('AB-02', '3', '100')] },
+            { id: 'v2', name: 'ספק שני', code: 'CD', rows: [row('CD-01', '1.5', '200')] },
+          ] }],
+      }));
+    }, STORAGE_KEY);
+  }
+
+  test('one line carries the trip totals, described as polished diamonds', async ({ page }) => {
+    const errors = trackErrors(page);
+    await seedTrip(page);
+    await page.goto(APP_URL);
+    await page.locator('#navShip').click();
+
+    const doc = page.locator('.ship-doc');
+    await expect(doc).toBeVisible();
+    await expect(doc.locator('.ship-logo')).toBeVisible();            // the logo heads the form
+    await expect(doc.locator('.ship-title')).toHaveText('INVOICE');
+    await expect(doc.locator('.ship-from')).toContainText('RAMAT GAN');
+
+    const header = (await doc.locator('.ship-table thead th').allInnerTexts()).join('|');
+    expect(header).toBe('Line|Qty|Weight (gr.)|Carats|Description|Note|Price P/Uni|Total USD');
+
+    // exactly one item line, whatever the trip holds
+    await expect(doc.locator('.ship-table tr.ship-line')).toHaveCount(1);
+    const cells = await doc.locator('.ship-table tr.ship-line td').allInnerTexts();
+    expect(cells).toEqual(['1', '', '', '6.50', 'POLISHED DIAMONDS', '', '', '1,200.00']);
+
+    await expect(doc.locator('.ship-origin')).toContainText('ISRAEL');
+    await expect(doc.locator('.ship-totals')).toContainText('6.50');
+    await expect(doc.locator('.ship-totals')).toContainText('1,200.00');
+    await expect(doc.locator('.ship-kp')).toContainText('conflict free');
+    await expect(doc.locator('.ship-sign')).toContainText('012470670');
+
+    // it is the sheet handed to the shipper: English, left-to-right
+    expect(await doc.evaluate((el) => getComputedStyle(el).direction)).toBe('ltr');
+    expect(await doc.innerText()).not.toMatch(/[֐-׿]/);               // no Hebrew on the form itself
+    expect(errors, 'no console/page errors').toEqual([]);
+  });
+
+  test('the To box takes free text, and is remembered per trip', async ({ page }) => {
+    await seedTrip(page);
+    await page.goto(APP_URL);
+    await page.locator('#navShip').click();
+
+    const to = page.locator('#shipTo');
+    await expect(to).toHaveValue(/D And J EXPRESS LLC/);              // a starting point he can replace
+    // the box opens tall enough for every line of it, nothing scrolled out of sight
+    expect(await to.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(2);
+    await to.fill('SOME OTHER SHIPPER\nLINE TWO\nLINE THREE');
+    await page.locator('#shipNum').fill('64911');
+    await page.locator('#shipDate').fill('2026-08-17');
+
+    await expect.poll(async () => page.evaluate((key) => {
+      const s = JSON.parse(localStorage.getItem(key)), sh = s.trips[0].shipment || {};
+      return [sh.to, sh.number, sh.date, s.shipTo];
+    }, STORAGE_KEY)).toEqual([
+      'SOME OTHER SHIPPER\nLINE TWO\nLINE THREE', '64911', '2026-08-17',
+      'SOME OTHER SHIPPER\nLINE TWO\nLINE THREE',
+    ]);
+
+    // and it comes back the next time the form is opened
+    await page.locator('#navTracker').click();
+    await page.locator('#navShip').click();
+    await expect(page.locator('#shipTo')).toHaveValue('SOME OTHER SHIPPER\nLINE TWO\nLINE THREE');
+    await expect(page.locator('#shipNum')).toHaveValue('64911');
+    // the box grew to hold all three lines instead of clipping them
+    const box = page.locator('#shipTo');
+    expect(await box.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(2);
+  });
+
+  test('printing gives the plain form: no app chrome, date as text', async ({ page }) => {
+    await seedTrip(page);
+    await page.goto(APP_URL);
+    await page.locator('#navShip').click();
+    await page.emulateMedia({ media: 'print' });
+
+    await expect(page.locator('.ship-doc')).toBeVisible();
+    await expect(page.locator('.ship-doc .ship-logo')).toBeVisible();
+    for (const chrome of ['header', '.sidemenu', '.tripbar', '.tabs', '.ship-head', '.pv-trippick', '#shipDate']) {
+      await expect(page.locator(chrome).first(), `${chrome} must not print`).toBeHidden();
+    }
+    // the date prints as plain text, not as a browser date picker
+    await expect(page.locator('#shipDateOut')).toBeVisible();
+    await expect(page.locator('#shipDateOut')).toHaveText('03-07-2026');
+    await page.emulateMedia({ media: null });
+  });
+
+  test('a duplicated trip keeps the consignee but not the invoice number', async ({ page }) => {
+    await seedTrip(page);
+    await page.goto(APP_URL);
+    await page.locator('#navShip').click();
+    await page.locator('#shipNum').fill('64911');
+    await expect.poll(async () => page.evaluate((key) =>
+      (JSON.parse(localStorage.getItem(key)).trips[0].shipment || {}).number, STORAGE_KEY)).toBe('64911');
+
+    page.on('dialog', (d) => (d.type() === 'prompt' ? d.accept('Copy trip') : d.accept()));
+    await page.evaluate(() => duplicateTrip());
+    await page.locator('#navShip').click();
+    await expect(page.locator('#shipNum')).toHaveValue('');
+    await expect(page.locator('#shipTo')).toHaveValue(/D And J EXPRESS LLC/);
   });
 });
 
