@@ -221,6 +221,16 @@
     .totals{margin-top:12px}
     .card{border:1px solid #999}
     .summary-vendor{page-break-inside:avoid}
+    /* the shipping invoice prints as the plain form it is: no card, no input boxes,
+       and the date shown as text instead of a browser date picker */
+    .ship-view{padding:0!important}
+    .ship-doc{border:none!important; border-radius:0!important; box-shadow:none!important; padding:0!important}
+    .ship-table th,.ship-table td{border:none}
+    .ship-table th{border-top:1.5px solid #000; border-bottom:1.5px solid #000}
+    .ship-line td{border-bottom:1px solid #000}
+    .ship-to textarea{display:none!important}
+    .ship-to-out{display:block!important}
+    .print-val{display:inline!important}
     @page{margin:1.2cm}
   }
   .print-only{display:none}
@@ -353,6 +363,62 @@
   .st-time .tt-row b{color:var(--ink)}
   @media (max-width:520px){ .st-grid{grid-template-columns:1fr} }
   @media (max-width:520px){ .pv-stats{grid-template-columns:repeat(2,1fr)} .pv-head h2{font-size:22px} }
+  /* ---------- משלוח – the shipping invoice, one per trip ---------- */
+  .ship-view{padding:6px 4px 60px}
+  .ship-wrap{max-width:900px; margin:0 auto}
+  .ship-head{margin:8px 4px 6px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap}
+  .ship-head h2{margin:0; font-size:24px; color:var(--accent-d)}
+  .ship-head .st-sub{color:var(--muted); font-size:15px; margin-top:2px}
+  /* the document itself: English, left-to-right, black on white — it goes to the shipper */
+  .ship-doc{direction:ltr; background:#fff; color:#000; font-family:Arial,Helvetica,sans-serif;
+    font-size:13px; line-height:1.4; border:1px solid var(--line); border-radius:12px;
+    padding:26px 30px 34px; box-shadow:0 2px 10px rgba(0,0,0,.06)}
+  .ship-letterhead{border-top:3px solid #000; border-bottom:3px solid #000; padding:14px 0 12px; text-align:center}
+  .ship-logo{display:block; margin:0 auto 8px; width:230px; max-width:70%; height:auto}
+  .ship-from{font-size:12.5px; line-height:1.5}
+  .ship-title{text-align:center; font-family:"Times New Roman",Georgia,serif; font-style:italic;
+    font-weight:700; font-size:30px; text-decoration:underline; margin:18px 0 20px}
+  .ship-parties{display:flex; justify-content:space-between; align-items:flex-start; gap:24px; margin-bottom:26px}
+  .ship-to{display:flex; align-items:flex-start; gap:6px; flex:1}
+  .ship-to .lbl{font-weight:700; padding-top:3px; white-space:nowrap}
+  /* free text: he types whatever the consignee's details happen to be */
+  .ship-to textarea{flex:1; max-width:380px; min-height:92px; padding:4px 6px; border:1px solid #000;
+    border-radius:0; background:#fff; color:#000; font-family:inherit; font-size:13px; font-weight:700;
+    line-height:1.5; resize:none; overflow:hidden}
+  /* on paper the same text is laid out as a plain block, so a long address can never be clipped */
+  .ship-to-out{display:none; flex:1; max-width:380px; min-height:92px; padding:4px 6px; border:1px solid #000;
+    font-size:13px; font-weight:700; line-height:1.5; white-space:pre-wrap}
+  .ship-meta{width:250px}
+  .ship-meta .f{display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-bottom:12px; white-space:nowrap}
+  .ship-meta input{width:132px; padding:4px 6px; border:1px solid var(--line); border-radius:6px;
+    background:#fff; color:#000; font-family:inherit; font-size:13px}
+  .ship-num{font-weight:700}   /* issued by the app, so it is text and not a field */
+  .print-val{display:none}
+  .ship-table{width:100%; border-collapse:collapse; font-size:13px}
+  /* plain black-on-white, unlike the app's own tables: this is a printed form */
+  .ship-table th{padding:6px 6px; text-align:left; font-weight:700; white-space:nowrap;
+    position:static; background:none; color:#000; font-size:13px;
+    border:none; border-top:1.5px solid #000; border-bottom:1.5px solid #000}
+  .ship-table td{padding:7px 6px; text-align:left; border:none}
+  .ship-table tbody tr{background:none}
+  .ship-table .n{text-align:right}
+  .ship-line td{border-bottom:1px solid #000}
+  .ship-origin td,.ship-totals td{font-family:"Times New Roman",Georgia,serif; font-weight:700; font-size:14px}
+  .ship-kp{font-size:9px; line-height:1.35; margin:36px 0 0}
+  .ship-sign{margin-top:54px; display:flex; justify-content:flex-end}
+  .ship-sign .line{width:300px; border-top:1px solid #000; padding-top:6px; text-align:center}
+  .ship-sign .who{font-family:"Times New Roman",Georgia,serif; font-style:italic; font-weight:700; font-size:15px}
+  @media (max-width:640px){
+    .ship-doc{padding:18px 14px 26px}
+    .ship-parties{flex-direction:column; gap:14px}
+    .ship-meta{width:100%}
+    .ship-meta .f{justify-content:flex-start}
+    .ship-to textarea{max-width:none}
+    .ship-table{font-size:12px}
+    .ship-table th,.ship-table td{padding:6px 3px}
+    /* the form keeps its paper proportions; on a phone it swipes sideways instead of squashing */
+    .ship-view .table-scroll>table{min-width:560px}
+  }
   .guide-view{padding:6px 4px 60px; max-width:900px; margin:0 auto}
   .guide-hero{background:linear-gradient(135deg,#0f7b6c,#3d4a8a); color:#fff; border-radius:16px;
     padding:26px; margin:14px 0 26px; display:flex; gap:24px; align-items:center; flex-wrap:wrap;
@@ -408,6 +474,7 @@
       <button class="menu-item" id="navPreview" onclick="showView('preview')">👁️ תצוגה מהירה</button>
       <button class="menu-item" id="navHistory" onclick="showView('history')">🧳 היסטוריית נסיעות</button>
       <button class="menu-item" id="navStats" onclick="showView('stats')">📊 סטטיסטיקת ספקים</button>
+      <button class="menu-item" id="navShip" onclick="showView('ship')">📦 משלוח</button>
       <button class="menu-item guide" id="navGuide" onclick="showView('guide')">📖 מדריך שימוש</button>
     </div>
     <div class="menu-section">
@@ -450,6 +517,7 @@
     <main id="main"></main>
     <section class="preview-view" id="previewView" style="display:none"></section>
     <section class="stats-view" id="statsView" style="display:none"></section>
+    <section class="ship-view" id="shipView" style="display:none"></section>
     <section class="history-view" id="historyView" style="display:none"></section>
     <section class="guide-view" id="guideView" style="display:none"></section>
   </div>
@@ -835,6 +903,8 @@ function duplicateTrip(){
   const copy=JSON.parse(JSON.stringify(src));
   copy.id=rid('t'); copy.name=name.trim()||src.name+' (עותק)'; copy.date=today();
   copy.activeId=copy.vendors[0]?.id||null;
+  // the consignee carries over; the invoice itself is re-issued when the copy's form is opened
+  if(copy.shipment){ copy.shipment.number=''; copy.shipment.date=''; }
   // keep vendor structure but clear filled data so it's a fresh trip with same vendors
   if(confirm('לרוקן את הנתונים בעותק ולהשאיר רק את שמות הספקים?\n(אישור = ספקים בלבד · ביטול = להעתיק גם את כל הנתונים)')){
     copy.vendors.forEach(v=>{ v.id=rid('v'); v.rows=[blankRow()]; if(v.code) v.rows[0].serial=makeSerial(v.code,1); });
@@ -1697,7 +1767,7 @@ function toggleMenu(){
 function closeDrawer(){ document.body.classList.remove('menu-open'); }   // close the mobile drawer (no effect on desktop)
 let guideBuilt=false;
 let currentView='tracker';
-function showView(view){            // 'tracker' | 'preview' | 'history' | 'guide'
+function showView(view){            // 'tracker' | 'preview' | 'stats' | 'ship' | 'history' | 'guide'
   currentView=view;
   const isTracker = view==='tracker';
   document.querySelector('.tripbar').style.display = isTracker ? '' : 'none';
@@ -1707,6 +1777,9 @@ function showView(view){            // 'tracker' | 'preview' | 'history' | 'guid
   $('previewView').style.display = view==='preview' ? 'block' : 'none';
   if(view==='stats') buildStats();              // always rebuilt – data is live
   $('statsView').style.display = view==='stats' ? 'block' : 'none';
+  // shown first, then built: the To box measures itself, and a hidden box measures 0
+  $('shipView').style.display = view==='ship' ? 'block' : 'none';
+  if(view==='ship') buildShipment();            // always rebuilt – totals are live
   if(view==='guide' && !guideBuilt){ buildGuide(); guideBuilt=true; }
   $('guideView').style.display = view==='guide' ? 'block' : 'none';
   if(view==='history') buildHistory();          // always rebuilt – data is live
@@ -1715,6 +1788,7 @@ function showView(view){            // 'tracker' | 'preview' | 'history' | 'guid
   $('navPreview').classList.toggle('active', view==='preview');
   $('navHistory').classList.toggle('active', view==='history');
   $('navStats').classList.toggle('active', view==='stats');
+  $('navShip').classList.toggle('active', view==='ship');
   $('navGuide').classList.toggle('active', view==='guide');
   // reflect preview in the URL so an "add to home screen" shortcut opens it directly
   try{ const want=view==='preview'?'#preview':''; if(location.hash!==want) history.replaceState(null,'',location.pathname+location.search+want); }catch(e){}
@@ -1915,6 +1989,125 @@ function buildHistory(){
       </div>
     </div>`;
 }
+/* ============================================================
+   משלוח — the shipping invoice, one per trip.
+   Always a single line: the trip's total carats, its total USD, and the
+   fixed description "POLISHED DIAMONDS". The consignee ("To") is free text
+   and the date can be corrected; the number is the app's own running one.
+   ============================================================ */
+const SHIP_FROM = ['MACCABI BLDG #2049 1 JABUTINSKY ST','5252001 RAMAT GAN','ISRAEL','054-3972890'];
+const SHIP_LICENSE = '012470670';
+const SHIP_ORIGIN  = 'ISRAEL';
+const SHIP_DESC    = 'POLISHED DIAMONDS';
+const SHIP_TO_DEFAULT = 'D And J EXPRESS LLC\n48TH STREET 64W FLOOR 16 EIN#61-1813008\n10036 New York\nNY\nU.S.A.\nTel: 8473870875';
+const SHIP_KP = 'The diamonds herein invoiced have been purchased from legitimate sources not involved in funding conflict and in compliance with united nations resolutions. The seller hereby guarantees that these diamonds are conflict free, based on personal knowledge and/or written guarantees provide by the supplier of these diamonds';
+
+/* invoice numbers carry on from the last one issued on paper (64910 -> 64911, 64912 ...) */
+const SHIP_NO_FROM = 64910;
+
+/* The trip's invoice, issued the first time its form is opened: it takes the
+   next running number and is stamped with that day's date, both kept from then
+   on — a reprint next month still shows the day it was generated. */
+function shipment(trip){
+  const s = trip.shipment || (trip.shipment={});
+  if(s.to==null) s.to=state.shipTo||SHIP_TO_DEFAULT;   // whoever he shipped to last
+  if(!s.number){
+    const last=num(state.lastInvoiceNo);
+    state.lastInvoiceNo = (last>=SHIP_NO_FROM ? last : SHIP_NO_FROM) + 1;
+    s.number=String(state.lastInvoiceNo);
+    s.date=today();
+    save();
+  }
+  if(!s.date) s.date=today();
+  return s;
+}
+function shipTotals(trip){
+  let carats=0, usd=0;
+  trip.vendors.forEach(v=>v.rows.filter(hasData).forEach(r=>{ carats+=num(r.weight); usd+=rowCost(r); }));
+  return {carats, usd};
+}
+/* invoice figures always carry two decimals, and no currency sign – the column says USD */
+function fmtShip(n){ return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function shipDate(iso){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); return m ? m[3]+'-'+m[2]+'-'+m[1] : (iso||''); }
+function setShipField(k,val){
+  const s=shipment(activeTrip());
+  s[k]=val;
+  if(k==='to') state.shipTo=val;      // seed the next trip with the same consignee
+  debouncedSave();
+}
+/* the To box grows with what he types, so nothing is cut off on paper */
+function growShipTo(el){ if(!el) return; el.style.height='auto'; el.style.height=(el.scrollHeight+2)+'px'; }
+function gotoShipTrip(id){
+  if(!id || id===state.activeTripId) return;
+  state.activeTripId=id; save(); render();   // keep the rest of the app in sync
+  buildShipment();
+}
+function buildShipment(){
+  const trip=activeTrip(), s=shipment(trip), t=shipTotals(trip);
+  const tripOpts=[...state.trips].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+    .map(x=>`<option value="${x.id}"${x.id===trip.id?' selected':''}>${escapeHtml(tripLabel(x))}</option>`).join('');
+  $('shipView').innerHTML=`
+    <div class="ship-wrap">
+      <div class="ship-head no-print">
+        <div>
+          <h2>📦 משלוח</h2>
+          <div class="st-sub">חשבונית המשלוח של הנסיעה – שורה אחת עם סה"כ הקראט וסה"כ הדולר</div>
+        </div>
+        <button class="pv-install" onclick="window.print()" title="הדפסת החשבונית, או שמירתה כקובץ PDF (בחלון ההדפסה בוחרים ביעד 'שמירה כ‑PDF').">🖨️ הדפסה / PDF</button>
+      </div>
+      <label class="pv-trippick no-print">📁 נסיעה:
+        <select class="pv-tripsel" onchange="gotoShipTrip(this.value)" title="מעבר בין נסיעות – לכל נסיעה חשבונית משלוח משלה">${tripOpts}</select>
+      </label>
+      <div class="ship-doc">
+        <div class="ship-letterhead">
+          <img class="ship-logo" src="${BMD_LOGO}" alt="Bezalel Moshe Diamonds">
+          <div class="ship-from">${SHIP_FROM.map(escapeHtml).join('<br>')}</div>
+        </div>
+        <div class="ship-title">INVOICE</div>
+        <div class="ship-parties">
+          <div class="ship-to">
+            <span class="lbl">To:</span>
+            <textarea id="shipTo" spellcheck="false" title="פרטי הנמען – אפשר לכתוב כאן כל טקסט, בכמה שורות שצריך."
+              oninput="setShipField('to',this.value); growShipTo(this); $('shipToOut').textContent=this.value">${escapeHtml(s.to)}</textarea>
+            <div class="ship-to-out" id="shipToOut">${escapeHtml(s.to)}</div>
+          </div>
+          <div class="ship-meta">
+            <div class="f"><span>Invoice Number:</span>
+              <span class="ship-num" id="shipNum"
+                title="מספר החשבונית – רץ לבד, אחד אחרי השני. אין מה למלא ואי אפשר לשנות.">${escapeHtml(s.number)}</span></div>
+            <div class="f"><span>Invoice Date:</span>
+              <input id="shipDate" class="no-print" type="date" value="${escapeHtml(s.date)}"
+                title="תאריך החשבונית"
+                onchange="setShipField('date',this.value); $('shipDateOut').textContent=shipDate(this.value)">
+              <span class="print-val" id="shipDateOut">${escapeHtml(shipDate(s.date))}</span></div>
+          </div>
+        </div>
+        <div class="table-scroll"><table class="ship-table">
+          <thead><tr>
+            <th>Line</th><th>Qty</th><th>Weight (gr.)</th><th>Carats</th>
+            <th>Description</th><th>Note</th><th class="n">Price P/Uni</th><th class="n">Total USD</th>
+          </tr></thead>
+          <tbody>
+            <tr class="ship-line">
+              <td>1</td><td></td><td></td><td>${fmtShip(t.carats)}</td>
+              <td>${SHIP_DESC}</td><td></td><td class="n"></td><td class="n">${fmtShip(t.usd)}</td>
+            </tr>
+            <tr class="ship-origin"><td colspan="3">Origin:&nbsp; ${escapeHtml(SHIP_ORIGIN)}</td><td colspan="5"></td></tr>
+            <tr class="ship-totals">
+              <td colspan="3">Totals:</td><td>${fmtShip(t.carats)}</td>
+              <td colspan="3"></td><td class="n">${fmtShip(t.usd)}</td>
+            </tr>
+          </tbody>
+        </table></div>
+        <p class="ship-kp">${SHIP_KP}</p>
+        <div class="ship-sign"><div class="line">
+          <div class="who">B.M.D</div><div>${SHIP_LICENSE}</div>
+        </div></div>
+      </div>
+    </div>`;
+  growShipTo($('shipTo'));
+}
+
 function dadFallback(img,kind){
   const span=document.createElement('span');
   span.className='dad-fallback '+(kind==='hero'?'dad-hero':'ava');
@@ -2035,22 +2228,34 @@ function buildGuide(){
     <p>הדף המודפס של <b>📊 סיכום כל הספקים</b> יוצא עם <b>הלוגו</b> למעלה, הטבלה באנגלית משמאל לימין, וסיכום אחד בסוף – מוכן למסור ללקוח או לספק.</p>
   `,null)}
 
-  ${guideStep(13,'שליחה במייל',`
+  ${guideStep(13,'📦 משלוח – חשבונית לנסיעה',`
+    <p>בתפריט יש <b>📦 משלוח</b> – חשבונית מוכנה להדפסה עבור <b>הנסיעה</b> שנבחרה למעלה, עם <b>הלוגו</b> והכתובת של החברה בראש הדף.</p>
+    <ul>
+      <li>בחשבונית תמיד יש <b>שורה אחת בלבד</b>: <b>סה"כ הקראט</b> ו<b>סה"כ הדולר</b> של כל הנסיעה יחד (כל הספקים), והתיאור בה הוא תמיד <b>POLISHED DIAMONDS</b>.</li>
+      <li>הסכומים מתעדכנים לבד מהטבלאות – אין מה למלא ואין מה לחשב.</li>
+      <li>בתיבת <b>To</b> כותבים את פרטי הנמען – <b>טקסט חופשי</b>, בכמה שורות שצריך. מה שנכתב נשמר לנסיעה, ומופיע מוכן גם בנסיעה הבאה.</li>
+      <li><b>Invoice Number</b> – <b>מספר רץ</b> שהאפליקציה נותנת לבד, אחד אחרי השני (ממשיך מהחשבוניות הקיימות: 64911, 64912 ...). כל נסיעה מקבלת מספר משלה <b>בפעם הראשונה</b> שנפתחת אצלה החשבונית, והוא נשאר שלה. אין מה למלא, ואי אפשר לשנות בטעות.</li>
+      <li><b>Invoice Date</b> – התאריך שבו נוצרה החשבונית. הוא <b>לא</b> משתנה אחר כך, גם אם מדפיסים שוב בעוד חודש; אם בכל זאת צריך תאריך אחר, אפשר לשנות אותו ביד.</li>
+      <li>לוחצים <b>🖨️ הדפסה / PDF</b> – יוצא בדיוק הטופס, בלי התפריטים ובלי המסגרות של המסך.</li>
+    </ul>
+  `,null,{tip:'שורה אחת, סה"כ קראט וסה"כ דולר – בדיוק מה שהשליח צריך. מדפיס ויוצא לדרך 😎'})}
+
+  ${guideStep(14,'שליחה במייל',`
     <p><b>📧 שלח במייל</b> פותח מייל חדש מוכן (ב‑Gmail) ובמקביל חלון לשמירת PDF. הצעדים שמופיעים על המסך: שומרים את ה‑PDF, עוברים למייל שנפתח, מצרפים אליו את הקובץ, כותבים נמען – ושולחים.</p>
   `,null)}
 
-  ${guideStep(14,'ייבוא מאקסל ישן',`
+  ${guideStep(15,'ייבוא מאקסל ישן',`
     <p>יש נסיעות ישנות בקובץ אקסל של התבנית הישנה? <b>📥 ייבוא מאקסל ישן</b> טוען קובץ <b>.xlsx</b> ומוסיף אותו כ<b>נסיעה חדשה</b> – בלי לדרוס שום דבר קיים.</p>
     <p>הייבוא מסדר את הנתונים <b>לפי הקוד שבסריה</b>, לא לפי הלשונית שבאקסל. אם בלשונית אחת היו כמה קודים (למשל RM, RG ו־ MS באותה לשונית) – כל קוד מקבל <b>לשונית ספק משלו</b>, ששמה הוא הקוד עצמו. אפשר לשנות את השם אחרי הייבוא ב־✏️ שם.</p>
     <p>לשוניות ריקות באקסל פשוט לא מיובאות – לא נוצרות להן לשוניות ספק ריקות.</p>
   `,null)}
 
-  ${guideStep(15,'גיבוי ושחזור ידני',`
+  ${guideStep(16,'גיבוי ושחזור ידני',`
     <p><b>💾 גיבוי הכל</b> שומר קובץ אחד עם <b>כל</b> הנסיעות והנתונים. <b>↺ שחזור גיבוי</b> טוען קובץ כזה בחזרה – ושים לב, זה <b>דורס</b> את כל מה שיש כרגע באפליקציה.</p>
     <p>כדאי ללחוץ גיבוי מדי פעם, ובמיוחד לפני שמוחקים נסיעה או ספק.</p>
   `,null,{tip:'לפני שאני מוחק משהו – קודם גיבוי. שנייה אחת, והראש שקט.'})}
 
-  ${guideStep(16,'↩️ שחזור גרסה קודמת – רשת הביטחון',`
+  ${guideStep(17,'↩️ שחזור גרסה קודמת – רשת הביטחון',`
     <p><b>הסנכרון הוא לא גיבוי.</b> הוא שומר תמיד <b>עותק אחד – המצב הנוכחי</b>. אם נמחק משהו בטעות, המחיקה מגיעה גם לטלפון תוך שניות. בשביל זה קיים <b>↩️ שחזר גרסה קודמת</b>.</p>
     <p>האפליקציה שומרת לבד <b>גרסה אחת ליום</b>, בשני מקומות:</p>
     <ul>
@@ -2062,7 +2267,7 @@ function buildGuide(){
     <p><b>מתי נשמרת הגרסה היומית?</b> כשפותחים את האפליקציה, וגם אחרי השינוי הראשון באותו יום. פעם ביום, לא בכל לחיצה – אין מה לחכות או ללחוץ.</p>
   `,'backup',{tip:'טעיתי ומחקתי ספק שלם. שתי לחיצות – והכול חזר. גם בטלפון.'})}
 
-  ${guideStep(17,'☁️ סנכרון בין המחשב לטלפון',`
+  ${guideStep(18,'☁️ סנכרון בין המחשב לטלפון',`
     <p>רוצים שאותם נתונים יהיו גם במחשב וגם בטלפון? בתפריט, בקטע <b>סנכרון בענן</b>, לוחצים <b>☁️ סנכרן עם Google Drive</b> ומתחברים לחשבון Google. עושים את זה <b>פעם אחת בכל מכשיר</b>, עם <b>אותו חשבון</b> – ומאז הכול מסתנכרן לבד.</p>
     <img class="guide-shot" src="${GUIDE_IMG.driveoff}" alt="הכפתור לפני החיבור">
     <p>אחרי החיבור הקטע נראה ככה – רואים לאיזה קובץ מסתנכרנים, ויש כפתור שפותח אותו ב‑Drive:</p>
@@ -2092,7 +2297,7 @@ function buildGuide(){
     </ul>
   `,null)}
 
-  ${guideStep(18,'עדכונים – אין מה לעשות',`
+  ${guideStep(19,'עדכונים – אין מה לעשות',`
     <p>האפליקציה נפתחת מקישור באינטרנט, ולכן היא <b>מתעדכנת לבד</b> – כשמשתפרים בה דברים, הגרסה החדשה מופיעה אצלך מאליה, בלי להוריד או להתקין כלום. הנתונים שלך תמיד נשמרים.</p>
     <p>אפשר גם <b>להוסיף אותה לשולחן העבודה</b> כמו אפליקציה רגילה (ב‑Chrome/Edge יופיע סמל התקנה בשורת הכתובת), ואז היא עובדת גם בלי אינטרנט.</p>
   `,null)}

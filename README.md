@@ -17,6 +17,15 @@ combines everyone — like the old `Main` sheet.
 - **Vendors.** Add / rename / delete vendors per trip (replaces copying Excel tabs).
 - **Auto-save** to the browser, always on — nothing to remember.
 - **Print / PDF** — the 🖨️ button gives a clean printout (or "Save as PDF").
+- **משלוח — a shipping invoice per trip.** 📦 prints the company's invoice form,
+  logo and all, for the selected trip. It always carries **one line**: the trip's
+  total carats and total USD, described as `POLISHED DIAMONDS`. The **To** block is
+  free text — whatever the consignee's details happen to be; it is saved with the
+  trip and prefills the next one. The **invoice number runs on by itself**, carrying
+  on from the invoices already written by hand (64910 → 64911, 64912 …): a trip is
+  issued its number the first time its form is opened, and keeps it. The **date is
+  the day the invoice was generated**, frozen from then on — he can still correct it
+  by hand, but a reprint months later shows the original date.
 - **Export to Excel** — ⬇️ writes a UTF-8 CSV (opens in Excel, Hebrew intact).
 - **Backup / Restore** — 💾 saves a full backup file of everything; ↺ restores it.
 - **Daily versions.** One snapshot per day, kept in the browser (14 days) *and* as
