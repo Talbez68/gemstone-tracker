@@ -1864,8 +1864,8 @@ function buildPreview(){
       if(r.stones && num(r.stones)>1) fields.push(['מספר אבנים', escapeHtml(r.stones)]);
       if(r.shape) fields.push(['צורה', escapeHtml(r.shape)]);
       if(r.cert) fields.push(['תעודה', `<img class="sum-cert-thumb" data-cert="${escapeHtml(r.cert)}" alt="תעודה">`]);
-      fields.push(['עלות', fmtMoney(rc)]);
-      if(r.sale) fields.push(['מכירה', fmtMoney(rs), 'sale']);
+      fields.push(['עלות לקראט', fmtMoney(num(r.cost))]);
+      if(r.sale) fields.push(['מכירה לקראט', fmtMoney(num(r.sale)), 'sale']);
       if(r.notes) fields.push(['הערות', escapeHtml(r.notes), 'note']);
       const fieldsHtml=fields.map(f=>`<div class="f${f[2]?' '+f[2]:''}"><span class="fl">${f[0]}</span><span class="fv">${f[1]}</span></div>`).join('');
       return `<div class="pv-row${r.sold?' sold':''}">
@@ -2053,7 +2053,7 @@ function buildGuide(){
 
   ${guideStep(9,'תצוגה מהירה (מצוין לטלפון)',`
     <p>בתפריט, מתחת ל‑<b>🏠 מסך המעקב</b>, יש <b>👁️ תצוגה מהירה</b> – מסך נוח ונקי שמראה את הנסיעה הנוכחית, מתאים במיוחד <b>לטלפון בדרכים</b>.</p>
-    <p>למעלה רואים את כל הסכומים הגדולים (עלות, מכירה, רווח, נמכר, קראט, אבנים), ומתחת כל ספק עם הסיכום שלו וכרטיס קטן לכל אבן. אפשר להחליף נסיעה למעלה ולראות מיד את הסיכום שלה.</p>
+    <p>למעלה רואים את כל הסכומים הגדולים (עלות, מכירה, רווח, נמכר, קראט, אבנים), ומתחת כל ספק עם הסיכום שלו וכרטיס קטן לכל אבן. בכרטיס של כל אבן רואים את ה<b>עלות לקראט</b> וה<b>מכירה לקראט</b> – בדיוק המחירים שמדברים עליהם מול הספק – והסכומים הכוללים נשארים בסיכום של הספק ובכרטיסים שלמעלה. אפשר להחליף נסיעה למעלה ולראות מיד את הסיכום שלה.</p>
   `,'preview',{tip:'כשאני בדרך בין לקוחות אני פותח בטלפון את התצוגה המהירה – מבט אחד ואני יודע בדיוק איפה אני עומד.'})}
 
   ${guideStep(10,'היסטוריית נסיעות',`
