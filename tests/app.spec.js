@@ -401,6 +401,41 @@ test.describe('Gemstone tracker', () => {
       page.evaluate((key) => JSON.parse(localStorage.getItem(key)).trips[0].vendors[0].rows[0].weight, STORAGE_KEY),
     ).toBe('1.75');
   });
+
+  // the all-vendors summary is the sheet he shows other people: company logo for a
+  // heading (screen and print alike) and English column names
+  test('the all-vendors summary is headed by the logo and labelled in English', async ({ page }) => {
+    await seed(page);
+    await page.goto(APP_URL);
+    const nums = page.locator('tbody tr').first().locator('input.num');
+    await nums.nth(0).fill('2');
+    await nums.nth(2).fill('300');
+    await page.locator('.tab.summary').click();
+
+    const panel = page.locator('.panel');
+    await expect(panel.locator('.sum-logo')).toBeVisible();          // not print-only
+    await expect(panel.locator('.vendor-head h2')).toHaveCount(0);   // Hebrew heading gone
+
+    const header = (await panel.locator('.sum-table thead th').allInnerTexts()).join('|');
+    for (const col of ['#', 'Serial', 'Weight (ct)', 'Stones', 'Shape', 'Cost / ct',
+                       'Total Cost', 'Cert', 'Notes', 'Sale / ct', 'Total Sale', 'Sold']) {
+      expect(header, `header should contain ${col}`).toContain(col);
+    }
+    await expect(panel.locator('.sum-table tfoot')).toContainText('Total — all vendors');
+    await expect(panel.locator('.totals')).toContainText('Total Carats');
+
+    // nothing but the logo above the table — no trip label, no heading
+    await expect(panel.locator('.sum-head')).toHaveText('');
+    // and no Hebrew anywhere on the sheet
+    expect(await panel.innerText()).not.toMatch(/[֐-׿]/);
+
+    // it reads left-to-right: '#' sits to the left of 'Sold'
+    expect(await panel.locator('.sum-panel, .sum-table').first().evaluate(
+      (el) => getComputedStyle(el).direction)).toBe('ltr');
+    const first = await panel.locator('.sum-table thead th').first().boundingBox();
+    const last = await panel.locator('.sum-table thead th').last().boundingBox();
+    expect(first.x, '# column is left of the Sold column').toBeLessThan(last.x);
+  });
 });
 
 // Google OAuth refuses file:// origins, so the Drive tests run over http://localhost.
