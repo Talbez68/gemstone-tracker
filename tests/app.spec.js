@@ -429,6 +429,12 @@ test.describe('Gemstone tracker', () => {
     // and no Hebrew anywhere on the sheet
     expect(await panel.innerText()).not.toMatch(/[֐-׿]/);
 
+    // a tfoot repeats under every printed page, so the grand total must not be one
+    await page.emulateMedia({ media: 'print' });
+    expect(await panel.locator('.sum-table tfoot').evaluate(
+      (el) => getComputedStyle(el).display)).toBe('table-row-group');
+    await page.emulateMedia({ media: null });
+
     // it reads left-to-right: '#' sits to the left of 'Sold'
     expect(await panel.locator('.sum-panel, .sum-table').first().evaluate(
       (el) => getComputedStyle(el).direction)).toBe('ltr');
