@@ -784,18 +784,24 @@ test.describe('Google Drive sync', () => {
     await open(page);
     await page.evaluate(() => connectDrive());
 
-    // a backup from an earlier day, holding a vendor the current data no longer has
-    await page.evaluate(async () => {
+    // connectDrive() writes today's backup in the background, creating the backups
+    // folder on its way. Wait for that to land before planting an older backup:
+    // otherwise the background create replaces the folder this test just made, and
+    // the planted file is left parented to an id nothing owns.
+    const isBackup = /^gemstones_\d{4}-\d{2}-\d{2}\.json$/;
+    await expect.poll(() => page.evaluate((re) => Object.values(window.__drive.files)
+      .some((f) => new RegExp(re).test(f.name || '')), isBackup.source)).toBe(true);
+
+    // a backup from an earlier day, holding a vendor the current data no longer has,
+    // filed in the same folder the app itself uses
+    await page.evaluate((re) => {
       const old = { app: 'gemstone-tracker', savedAt: '2026-01-02T00:00:00.000Z',
         state: { currency: '$', savedAt: '2026-01-02T00:00:00.000Z', activeTripId: 't1', trips: [{ id: 't1', name: 'Old trip', date: '2026-01-02', activeId: 'v1',
           vendors: [{ id: 'v1', name: 'ספק שנמחק', code: 'AB', rows: [{ serial: 'AB-01', weight: '9', stones: '1', shape: '', cost: '', cert: '', notes: '' }] }] }] } };
-      const all = Object.values(window.__drive.files);
-      const root = all.find((f) => f.name === 'מעקב אבני חן');
-      const folder = all.find((f) => f.name === 'backups' && (f.parents || []).includes(root.id))
-        || (window.__drive.files['backups@' + root.id] = { id: 'bak', name: 'backups', parents: [root.id], mimeType: 'application/vnd.google-apps.folder' });
-      window.__drive.files['gemstones_2026-01-02.json@' + folder.id] =
-        { id: 'b1', name: 'gemstones_2026-01-02.json', parents: [folder.id], modifiedTime: 't0', body: JSON.stringify(old) };
-    });
+      const folder = Object.values(window.__drive.files).find((f) => new RegExp(re).test(f.name || '')).parents[0];
+      window.__drive.files['gemstones_2026-01-02.json@' + folder] =
+        { id: 'b1', name: 'gemstones_2026-01-02.json', parents: [folder], modifiedTime: 't0', body: JSON.stringify(old) };
+    }, isBackup.source);
 
     // that day shows up in the restore list even though this device never saw it
     const days = await page.evaluate(async () => (await restorableDays()).map((r) => r.day));
