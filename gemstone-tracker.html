@@ -780,7 +780,7 @@ function buildSummary(trip){
   head.innerHTML=`<img class="sum-logo" src="${BMD_LOGO}" alt="Bezalel Moshe Diamonds">`;
   wrap.appendChild(head);
 
-  let gCost=0,gStones=0,gWt=0,gRows=0,idx=0;
+  let gCost=0,gWt=0,gRows=0,idx=0;
   const table=document.createElement('table'); table.className='sum-table';
   table.innerHTML=`<thead><tr>
     <th>#</th><th>Serial</th><th>Weight (ct)</th><th class="col-stones">Stones</th><th>Shape</th>
@@ -791,7 +791,7 @@ function buildSummary(trip){
     const rows=v.rows.filter(hasData); if(rows.length===0) return;
     rows.forEach((r,i)=>{
       const c=rowCost(r);
-      gCost+=c; gStones+=num(r.stones); gWt+=num(r.weight); gRows++; idx++;
+      gCost+=c; gWt+=num(r.weight); gRows++; idx++;
       const tr=document.createElement('tr');
       tr.innerHTML=`<td class="col-num">${idx}</td><td>${escapeHtml(r.serial)}</td>
         <td>${r.weight?fmtNum(num(r.weight)):''}</td><td class="col-stones">${r.stones||''}</td><td>${escapeHtml(r.shape)}</td>
@@ -810,7 +810,6 @@ function buildSummary(trip){
   hydrateCertThumbs(table);
   const g=document.createElement('div'); g.className='totals'; g.style.marginTop='24px';
   g.innerHTML=`
-    <div class="card"><div class="k">Total Stones</div><div class="v">${fmtNum(gStones)}</div></div>
     <div class="card"><div class="k">Total Carats</div><div class="v">${fmtNum(gWt)}</div></div>
     <div class="card"><div class="k">Total Cost</div><div class="v">${fmtMoney(gCost)}</div></div>`;
   wrap.appendChild(g);
