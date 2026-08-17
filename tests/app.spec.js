@@ -421,18 +421,24 @@ test.describe('Gemstone tracker', () => {
                        'Total Cost', 'Cert', 'Notes']) {
       expect(header, `header should contain ${col}`).toContain(col);
     }
-    await expect(panel.locator('.sum-table tfoot')).toContainText('Total — all vendors');
+    // the totals live in the cards alone — the table carries rows, no footer
+    await expect(panel.locator('.sum-table tfoot')).toHaveCount(0);
     await expect(panel.locator('.totals')).toContainText('Total Carats');
+    await expect(panel.locator('.totals')).toContainText('Total Cost');
+    await expect(panel.locator('.totals')).not.toContainText('Total Stones');
 
     // nothing but the logo above the table — no trip label, no heading
     await expect(panel.locator('.sum-head')).toHaveText('');
     // and no Hebrew anywhere on the sheet
     expect(await panel.innerText()).not.toMatch(/[֐-׿]/);
 
-    // a tfoot repeats under every printed page, so the grand total must not be one
+    // both totals reach paper, and with no tfoot there is no footer left to
+    // repeat under every printed page
     await page.emulateMedia({ media: 'print' });
-    expect(await panel.locator('.sum-table tfoot').evaluate(
-      (el) => getComputedStyle(el).display)).toBe('table-row-group');
+    await expect(panel.locator('.totals .card')).toHaveCount(2);
+    for (const card of ['Total Carats', 'Total Cost']) {
+      await expect(panel.locator('.totals .card', { hasText: card })).toBeVisible();
+    }
     await page.emulateMedia({ media: null });
 
     // it reads left-to-right: '#' sits to the left of 'Notes'
@@ -812,6 +818,40 @@ test.describe('Google Drive sync', () => {
     expect(await page.evaluate(() => state.trips[0].vendors[0].name)).toBe('ספק שנמחק');
     // ...and pushed, so the other device pulls the restore rather than undoing it
     await expect.poll(async () => (await driveBody(page)).state.trips[0].vendors[0].name).toBe('ספק שנמחק');
+  });
+
+  // a Drive listing that fails must not look like "there are no cloud backups"
+  test('an unreadable Drive is admitted in the restore dialog, not hidden', async ({ page }) => {
+    await seed(page);
+    await stubDrive(page, null);
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    // one local snapshot, so there is a real list to show alongside the warning
+    await page.evaluate(async () => { await snapPut({ day: '2026-02-03', ts: '2026-02-03T00:00:00.000Z', data: JSON.parse(JSON.stringify(state)) }); });
+
+    // the backups listing now fails the way a dropped connection would. Only the
+    // "everything inside this folder" query is broken; folder lookups still work.
+    await page.evaluate(() => {
+      const real = window.fetch;
+      window.fetch = (u, o) => {
+        const s = decodeURIComponent(String((u && u.url) || u));
+        return (s.includes('/drive/v3/files?') && s.includes('in parents') && !s.includes('name='))
+          ? Promise.reject(new Error('offline')) : real(u, o);
+      };
+    });
+
+    await page.evaluate(() => openRestore());
+    const box = page.locator('#rstOverlay');
+    await expect(box).toContainText('לא הצלחנו לקרוא את הגיבויים');
+    await expect(box).toContainText('2026-02-03');            // local versions still offered
+    expect(await page.evaluate(() => driveBackupsUnread)).toBe(true);
+
+    // and when Drive reads fine, no warning is shown
+    await page.evaluate(() => closeRestore());
+    await page.reload();
+    await page.evaluate(() => openRestore());
+    await expect(page.locator('#rstOverlay')).not.toContainText('לא הצלחנו לקרוא את הגיבויים');
   });
 
   test('a local edit is pushed to Drive automatically', async ({ page }) => {

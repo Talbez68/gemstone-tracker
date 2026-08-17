@@ -218,9 +218,6 @@
     .print-only{display:block!important}
     .sum-head{margin-bottom:10px}
     .sum-logo{width:52mm}
-    /* a tfoot repeats under every printed page; the grand total belongs once, at the end */
-    .sum-table tfoot{display:table-row-group}
-    .sum-table tfoot tr{page-break-inside:avoid}
     .totals{margin-top:12px}
     .card{border:1px solid #999}
     .summary-vendor{page-break-inside:avoid}
@@ -269,6 +266,8 @@
   .rst-list{display:flex; flex-direction:column; gap:8px}
   .rst-item{display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--soft); border:1px solid var(--line); border-radius:10px; padding:11px 14px}
   .rst-meta{color:var(--muted); font-size:14px}
+  .rst-warn{background:#fff7e6; border:1px solid var(--gold); color:#8a6a16!important; border-radius:10px;
+    padding:9px 12px; font-size:14px!important; line-height:1.5; margin:0 0 14px}
   .menu-toggle{display:inline-flex; align-items:center; background:rgba(255,255,255,.18); color:#fff; border:none;
     border-radius:9px; font-size:22px; line-height:1; padding:6px 12px; cursor:pointer}
   .menu-backdrop{display:none}
@@ -299,8 +298,6 @@
   .sum-table thead th{background:var(--soft); color:var(--accent-d); font-weight:700; position:static; font-size:14px}
   .sum-table tbody tr:nth-child(even){background:#fbfaf6}
   .sum-table td.auto{background:var(--auto); font-weight:700; color:var(--accent-d)}
-  .sum-table tfoot td{background:#f1ede3; font-weight:800; color:var(--accent-d); padding:11px 8px}
-  .sum-table tfoot .lbl{text-align:left; color:var(--accent-d)}
   /* friendly mobile preview */
   .preview-view{padding:6px 4px 60px; max-width:760px; margin:0 auto}
   .pv-head{margin:8px 4px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap}
@@ -783,7 +780,7 @@ function buildSummary(trip){
   head.innerHTML=`<img class="sum-logo" src="${BMD_LOGO}" alt="Bezalel Moshe Diamonds">`;
   wrap.appendChild(head);
 
-  let gCost=0,gStones=0,gWt=0,gRows=0,idx=0;
+  let gCost=0,gWt=0,gRows=0,idx=0;
   const table=document.createElement('table'); table.className='sum-table';
   table.innerHTML=`<thead><tr>
     <th>#</th><th>Serial</th><th>Weight (ct)</th><th class="col-stones">Stones</th><th>Shape</th>
@@ -794,7 +791,7 @@ function buildSummary(trip){
     const rows=v.rows.filter(hasData); if(rows.length===0) return;
     rows.forEach((r,i)=>{
       const c=rowCost(r);
-      gCost+=c; gStones+=num(r.stones); gWt+=num(r.weight); gRows++; idx++;
+      gCost+=c; gWt+=num(r.weight); gRows++; idx++;
       const tr=document.createElement('tr');
       tr.innerHTML=`<td class="col-num">${idx}</td><td>${escapeHtml(r.serial)}</td>
         <td>${r.weight?fmtNum(num(r.weight)):''}</td><td class="col-stones">${r.stones||''}</td><td>${escapeHtml(r.shape)}</td>
@@ -803,11 +800,6 @@ function buildSummary(trip){
     });
   });
   table.appendChild(tb);
-  const tf=document.createElement('tfoot');
-  tf.innerHTML=`<tr><td class="lbl" colspan="2">Total — all vendors</td>
-    <td>${fmtNum(gWt)}</td><td class="col-stones">${fmtNum(gStones)}</td><td></td><td></td>
-    <td class="auto">${fmtMoney(gCost)}</td><td></td><td></td></tr>`;
-  table.appendChild(tf);
 
   if(gRows===0){
     const e=document.createElement('div'); e.className='empty';
@@ -818,7 +810,6 @@ function buildSummary(trip){
   hydrateCertThumbs(table);
   const g=document.createElement('div'); g.className='totals'; g.style.marginTop='24px';
   g.innerHTML=`
-    <div class="card no-print"><div class="k">Total Stones</div><div class="v">${fmtNum(gStones)}</div></div>
     <div class="card"><div class="k">Total Carats</div><div class="v">${fmtNum(gWt)}</div></div>
     <div class="card"><div class="k">Total Cost</div><div class="v">${fmtMoney(gCost)}</div></div>`;
   wrap.appendChild(g);
@@ -1298,10 +1289,13 @@ async function saveSnapshot(){
 function rowsIn(d){ let n=0; (d&&d.trips||[]).forEach(t=>(t.vendors||[]).forEach(v=>n+=(v.rows||[]).filter(hasData).length)); return n; }
 /* every day we can restore: this device's own snapshots, plus the dated
    backups in Drive – which is how the phone gets a history at all */
+let driveBackupsUnread=false;          // the last restorableDays() could not read Drive
 async function restorableDays(){
   const byDay=Object.create(null);
   for(const r of await snapAll()) byDay[r.day]={day:r.day, local:r, drive:null};
-  let cloud=[]; try{ cloud=await driveBackupList(); }catch(e){}
+  let cloud=[]; driveBackupsUnread=false;
+  try{ cloud=await driveBackupList(); }
+  catch(e){ driveBackupsUnread=true; }   // connected but unreadable – say so, don't hide it
   for(const b of cloud){ (byDay[b.day]=byDay[b.day]||{day:b.day, local:null, drive:null}).drive=b; }
   return Object.values(byDay).sort((a,b)=>b.day.localeCompare(a.day));
 }
@@ -1309,6 +1303,7 @@ async function openRestore(){
   closeDrawer();
   const all=await restorableDays();
   let html='<div class="rst-box"><h2>↩️ שחזור גרסה קודמת</h2>';
+  if(driveBackupsUnread) html+='<p class="rst-warn">⚠️ לא הצלחנו לקרוא את הגיבויים מ‑Drive – למטה מוצגות רק הגרסאות שנשמרו במכשיר הזה. כדאי לבדוק את החיבור ולנסות שוב.</p>';
   if(!all.length){ html+='<p>אין עדיין גרסאות שמורות. הן נוצרות אוטומטית תוך כדי העבודה (גרסה אחת ליום).</p>'; }
   else{
     html+='<p>בחר תאריך לשחזור. הנתונים הנוכחיים יוחלפו (אבל גם הם נשמרים כגרסה, אז אפשר לחזור)'
