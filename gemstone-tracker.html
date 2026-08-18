@@ -126,11 +126,15 @@
   th.col-stones,td.col-stones{width:54px}
   /* Shape holds English words (Cushion, Marquise) and is the one field with a
      datalist. Chrome reserves ~20px at the end of such a field for its picker
-     button – which it never paints here – so the word was pushed out of the
-     visible part of the field and, the page being RTL, clipped at its *start*:
-     "Cushion" read "shion". Reclaim that space, keep a floor width, and let the
-     field itself run left-to-right like the words it holds. */
+     button – which it does not paint while the field just sits there – so the
+     word was pushed out of the visible part of the field and, the page being
+     RTL, clipped at its *start*: "Cushion" read "shion". Reclaim that space for
+     reading, keep a floor width, and let the field itself run left-to-right
+     like the words it holds. */
   td.col-shape input::-webkit-calendar-picker-indicator{display:none!important}
+  /* ...but hand the picker button back while the field is being filled in, so the
+     shapes list still has its arrow exactly when someone is choosing a shape. */
+  td.col-shape input:focus::-webkit-calendar-picker-indicator{display:inline-block!important}
   th.col-shape,td.col-shape{min-width:96px}
   td.col-shape input{direction:ltr}
   .sum-table td.col-shape{white-space:nowrap}

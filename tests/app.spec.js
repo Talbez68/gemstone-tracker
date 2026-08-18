@@ -402,12 +402,14 @@ test.describe('Gemstone tracker', () => {
     const shape = page.locator('tbody tr').first().locator('td.col-shape input');
     for (const word of ['Cushion', 'Marquise', 'Princess', 'Baguette']) {
       await shape.fill(word);
+      await shape.blur();          // measure the field as it sits, not while being filled in
       const box = await shape.evaluate((el) => {
         const cs = getComputedStyle(el), r = el.getBoundingClientRect();
         const ctx = document.createElement('canvas').getContext('2d');
         ctx.font = `${cs.fontSize} ${cs.fontFamily}`;
         // Chrome reserves room at the end of a datalist field for a picker button
-        // it never paints; that reserve is what pushed the word out of sight.
+        // it does not paint here; that reserve is what pushed the word out of sight.
+        // (Focusing the field hands the button its room back.)
         // Grow a probe string until the field starts scrolling to see what it really offers.
         const padded = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
         const kept = el.value;
