@@ -395,21 +395,48 @@ test.describe('Gemstone tracker', () => {
     }
   });
 
-  test('on a phone the shape field shows the whole word, not its tail', async ({ page }) => {
+  test('on a phone the shape word is whole and on screen before any swipe', async ({ page }) => {
     await seed(page);
-    await page.setViewportSize({ width: 412, height: 900 });   // a typical Android phone
+    await page.setViewportSize({ width: 360, height: 900 });   // a common Android width
     await page.goto(APP_URL);
     const shape = page.locator('tbody tr').first().locator('td.col-shape input');
-    for (const word of ['Cushion', 'Marquise', 'Princess']) {
+    for (const word of ['Cushion', 'Marquise', 'Princess', 'Baguette']) {
       await shape.fill(word);
-      const box = await shape.evaluate((el) => ({
-        overflow: el.scrollWidth - el.clientWidth,
-        dir: getComputedStyle(el).direction,
-      }));
+      const box = await shape.evaluate((el) => {
+        const cs = getComputedStyle(el), r = el.getBoundingClientRect();
+        const ctx = document.createElement('canvas').getContext('2d');
+        ctx.font = `${cs.fontSize} ${cs.fontFamily}`;
+        // Chrome reserves room at the end of a datalist field for a picker button
+        // it never paints; that reserve is what pushed the word out of sight.
+        // Grow a probe string until the field starts scrolling to see what it really offers.
+        const padded = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        const kept = el.value;
+        let lo = 0, hi = 400;
+        while (hi - lo > 1) {
+          const mid = (lo + hi) / 2;
+          let probe = '';
+          while (ctx.measureText(probe + 'i').width < mid) probe += 'i';
+          el.value = probe;
+          if (el.scrollWidth <= el.clientWidth) lo = mid; else hi = mid;
+        }
+        el.value = kept;
+        const reserve = padded - lo;
+        const textLeft = r.right - parseFloat(cs.paddingRight) - ctx.measureText(el.value).width;
+        return {
+          overflow: el.scrollWidth - el.clientWidth,
+          dir: cs.direction,
+          // the table scrolls sideways: everything left of this edge is off screen
+          onScreen: textLeft - document.querySelector('.table-scroll').getBoundingClientRect().left,
+          reserve,
+        };
+      });
+      expect(box.reserve, 'the datalist picker must not reserve room').toBeLessThanOrEqual(2);
       // RTL page: a word too wide for the field is clipped at its *start*
-      // ("Cushion" used to read "shion"), so it must fit outright.
+      // ("Cushion" used to read "shion"), so it must fit the field outright...
       expect(box.overflow, `"${word}" must fit inside the shape field`).toBeLessThanOrEqual(0);
       expect(box.dir, 'shape reads left-to-right').toBe('ltr');
+      // ...and land inside the strip the phone shows when the table first opens.
+      expect(box.onScreen, `"${word}" must start inside the visible strip`).toBeGreaterThanOrEqual(0);
     }
   });
 
