@@ -395,6 +395,24 @@ test.describe('Gemstone tracker', () => {
     }
   });
 
+  test('on a phone the shape field shows the whole word, not its tail', async ({ page }) => {
+    await seed(page);
+    await page.setViewportSize({ width: 412, height: 900 });   // a typical Android phone
+    await page.goto(APP_URL);
+    const shape = page.locator('tbody tr').first().locator('td.col-shape input');
+    for (const word of ['Cushion', 'Marquise', 'Princess']) {
+      await shape.fill(word);
+      const box = await shape.evaluate((el) => ({
+        overflow: el.scrollWidth - el.clientWidth,
+        dir: getComputedStyle(el).direction,
+      }));
+      // RTL page: a word too wide for the field is clipped at its *start*
+      // ("Cushion" used to read "shion"), so it must fit outright.
+      expect(box.overflow, `"${word}" must fit inside the shape field`).toBeLessThanOrEqual(0);
+      expect(box.dir, 'shape reads left-to-right').toBe('ltr');
+    }
+  });
+
   test('the guide documents Drive sync and drops the removed features', async ({ page }) => {
     await seed(page);
     await page.goto(APP_URL);
