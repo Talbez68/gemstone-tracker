@@ -18,17 +18,23 @@ const screenText = () => { adb('shell uiautomator dump /sdcard/ui.xml'); return 
 let browser;
 async function connect() {
   if (browser) await browser.close().catch(() => {});
+  browser = undefined;
   adb('forward tcp:9222 localabstract:chrome_devtools_remote');
   for (let i = 0; i < 30; i++) {
     try { browser = await chromium.connectOverCDP('http://127.0.0.1:9222'); break; }
     catch { await new Promise((r) => setTimeout(r, 1000)); }
   }
+  if (!browser) throw new Error('could not reach Chrome on the device');
   for (let i = 0; i < 30; i++) {
     const page = browser.contexts().flatMap((c) => c.pages()).find((p) => p.url().startsWith(BRANCH_URL));
     if (page) { page.setDefaultTimeout(30_000); return page; }
     await new Promise((r) => setTimeout(r, 1000));
   }
-  throw new Error('the app page never showed up: ' + browser.contexts().flatMap((c) => c.pages()).map((p) => p.url()));
+  console.log('no app page. top:', topActivity());
+  console.log('targets:', execSync('curl -s http://127.0.0.1:9222/json/list', { encoding: 'utf8' }));
+  console.log('screen:', (screenText().match(/text="[^"]+"/g) || []).join(' '));
+  shot('no-page-' + Date.now());
+  throw new Error('the app page never showed up');
 }
 // close the Android app completely and open it again from the launcher
 async function restartApp() {
