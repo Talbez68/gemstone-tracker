@@ -126,7 +126,21 @@ test('backup saves a file into the phone\'s Downloads', async () => {
     await new Promise((r) => setTimeout(r, 3000));
   }
   const after = adb('shell ls /sdcard/Download/ || true');
-  if (!/gemstones_backup_/.test(after)) console.log('screen after backup:', screenText().match(/text="[^"]+"/g));
+  if (!/gemstones_backup_/.test(after)) {
+    console.log('logcat downloads:', adb('logcat -d').split('\n').filter((l) => /download/i.test(l)).slice(-25).join('\n'));
+    // which kind of download does Chrome here manage at all?
+    for (const [kind, js] of [
+      ['plain-url', "Object.assign(document.createElement('a'),{href:'manifest.json',download:'probe_url.json'})"],
+      ['data-url', "Object.assign(document.createElement('a'),{href:'data:application/json,%7B%7D',download:'probe_data.json'})"],
+      ['blob', "Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob(['{}'],{type:'application/json'})),download:'probe_blob.json'})"],
+    ]) {
+      await page.evaluate((code) => { window.__probe = eval(code); document.body.appendChild(window.__probe); }, js);
+      await page.evaluate(() => window.__probe.click());
+      await new Promise((r) => setTimeout(r, 4000));
+      console.log('probe', kind, '->', adb('shell ls /sdcard/Download/ || true').trim() || '(nothing)',
+        '| screen:', (screenText().match(/text="[^"]*download[^"]*"/gi) || []).join(' '));
+    }
+  }
   expect(after, `Downloads before: ${before}`).toMatch(/gemstones_backup_\d{4}-\d{2}-\d{2}.*\.json/);
   await backToApp();
 });
