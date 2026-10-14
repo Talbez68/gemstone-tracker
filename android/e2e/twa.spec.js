@@ -19,6 +19,7 @@ let browser;
 async function connect() {
   if (browser) await browser.close().catch(() => {});
   browser = undefined;
+  if (!/CustomTabActivity|accounts\.google|printspooler/.test(topActivity())) await launch();
   adb('forward tcp:9222 localabstract:chrome_devtools_remote');
   for (let i = 0; i < 30; i++) {
     try { browser = await chromium.connectOverCDP('http://127.0.0.1:9222'); break; }
@@ -41,21 +42,26 @@ async function connect() {
   shot('no-page-' + Date.now());
   throw new Error('the app page never showed up');
 }
+const launch = async () => {
+  for (let i = 0; i < 3; i++) {
+    console.log(adb(`shell am start -W -n ${APP} -d ${BRANCH_URL}`));
+    await new Promise((r) => setTimeout(r, 8000));
+    const top = topActivity();
+    console.log('top after launch:', top);
+    if (/CustomTabActivity/.test(top)) return;
+  }
+};
 // close the Android app completely and open it again from the launcher
 async function restartApp() {
-  // he leaves the app (Home), Android reclaims Chrome's memory in the background,
-  // and later he opens the app again
+  // he leaves the app (Home) so Chrome saves the page, then Android ends it
   adb('shell input keyevent KEYCODE_HOME');
   await new Promise((r) => setTimeout(r, 4000));
-  // am kill is asynchronous: wait until Chrome is really gone, or the relaunch races it
-  for (let i = 0; i < 15 && adb('shell pidof com.android.chrome || true').trim(); i++) {
-    adb('shell am kill com.android.chrome');
-    await new Promise((r) => setTimeout(r, 1000));
-  }
-  console.log('chrome pid after kill:', JSON.stringify(adb('shell pidof com.android.chrome || true').trim()));
-  console.log(adb(`shell am start -W -n ${APP} -d ${BRANCH_URL}`));
-  await new Promise((r) => setTimeout(r, 8000));
-  console.log('top after relaunch:', topActivity());
+  // stop both the app's own task and Chrome, so the relaunch starts from scratch
+  // instead of bringing back a task whose Chrome is half dead
+  adb('shell am force-stop com.talbez68.gemstonetracker');
+  adb('shell am force-stop com.android.chrome');
+  await new Promise((r) => setTimeout(r, 2000));
+  await launch();
   return connect();
 }
 const stored = (page) => page.evaluate((k) => JSON.parse(localStorage.getItem(k)), STORAGE_KEY);
