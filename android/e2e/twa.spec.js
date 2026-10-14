@@ -9,7 +9,7 @@ import { STORAGE_KEY, PNG_B64, stubDrive } from '../../tests/helpers.js';
 const APP = 'com.talbez68.gemstonetracker/com.google.androidbrowserhelper.trusted.LauncherActivity';
 const BRANCH_URL = 'http://localhost:8080/gemstone-tracker.html';
 const OUT = 'android/e2e/out';
-const adb = (cmd) => execSync(`adb ${cmd}`, { encoding: 'utf8' });
+const adb = (cmd) => execSync(`adb ${cmd}`, { encoding: 'utf8', maxBuffer: 64 << 20 });
 const shot = (name) => { try { fs.writeFileSync(`${OUT}/${name}.png`, execSync('adb exec-out screencap -p')); } catch {} };
 const topActivity = () => adb('shell dumpsys activity activities').split('\n')
   .find((l) => /topResumedActivity|mResumedActivity/.test(l)) || '';
@@ -136,7 +136,7 @@ test('backup saves a file into the phone\'s Downloads', async () => {
   }
   const after = adb('shell ls /sdcard/Download/ || true');
   if (!/gemstones_backup_/.test(after)) {
-    console.log('logcat downloads:', adb('logcat -d').split('\n').filter((l) => /download/i.test(l)).slice(-25).join('\n'));
+    console.log('logcat downloads:', adb('logcat -d -t 3000').split('\n').filter((l) => /download/i.test(l)).slice(-25).join('\n'));
     // which kind of download does Chrome here manage at all?
     for (const [kind, js] of [
       ['plain-url', "Object.assign(document.createElement('a'),{href:'manifest.json',download:'probe_url.json'})"],
