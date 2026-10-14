@@ -555,6 +555,8 @@ function blankRow(){ return {serial:'',weight:'',stones:'',shape:'',cost:'',cert
 function newVendor(name, code=''){ const r=blankRow(); if(code) r.serial=makeSerial(code,1); return {id:rid('v'), name, code, rows:[r]}; }
 /* ---- vendor codes & auto-serials (CODE-01, CODE-02 ...) ---- */
 function vendorCode(v){ return ((v&&v.code) || (state&&state.vendorCodes&&state.vendorCodes[v.name]) || '').toUpperCase(); }
+/* a vendor code is 2 to 6 English letters (PD, GEMS, ELUL ...) */
+const VENDOR_CODE_RE=/^[A-Z]{2,6}$/;
 function makeSerial(code,n){ return code+'-'+String(n).padStart(2,'0'); }
 function nextSerialNum(v){
   const code=vendorCode(v); if(!code) return 1;
@@ -689,7 +691,7 @@ function buildVendor(trip,v){
   head.innerHTML=`<h2>${escapeHtml(v.name)} ${badge}</h2><span class="meta">${v.rows.length} שורות</span>`;
   const act=document.createElement('div'); act.className='vendor-actions';
   act.innerHTML=`
-    <button class="btn btn-sm btn-outline" onclick="setVendorCode('${v.id}')" title="קוד הספק (2 אותיות באנגלית, למשל PD). ממנו נוצרות הסריות אוטומטית: PD-01, PD-02 ...">🏷️ ${code?'קוד: '+escapeHtml(code):'קבע קוד ספק'}</button>
+    <button class="btn btn-sm btn-outline" onclick="setVendorCode('${v.id}')" title="קוד הספק (2 עד 6 אותיות באנגלית, למשל PD). ממנו נוצרות הסריות אוטומטית: PD-01, PD-02 ...">🏷️ ${code?'קוד: '+escapeHtml(code):'קבע קוד ספק'}</button>
     <button class="btn btn-sm btn-outline" onclick="renameVendor('${v.id}')" title="שינוי שם הספק.">✏️ שנה שם</button>
     <button class="btn btn-sm btn-danger" onclick="deleteVendor('${v.id}')" title="מחיקת הספק וכל השורות שלו. אי אפשר לבטל.">🗑️ מחק ספק</button>`;
   head.appendChild(act); wrap.appendChild(head);
@@ -930,10 +932,10 @@ function deleteTrip(){
 /* ----- vendors ----- */
 function addVendor(){
   const name=prompt('שם הספק החדש:','ספק חדש'); if(name===null) return;
-  let code=prompt('קוד הספק – 2 אותיות באנגלית גדולות (למשל RM), שממנו נוצרות הסריות אוטומטית (RM-01, RM-02 ...).\nאפשר להשאיר ריק ולקבוע מאוחר יותר:','');
+  let code=prompt('קוד הספק – 2 עד 6 אותיות באנגלית גדולות (למשל RM או GEMS), שממנו נוצרות הסריות אוטומטית (RM-01, RM-02 ...).\nאפשר להשאיר ריק ולקבוע מאוחר יותר:','');
   if(code===null) code='';
   code=code.trim().toUpperCase();
-  if(code && !/^[A-Z]{2}$/.test(code)){ alert('הקוד חייב להיות בדיוק 2 אותיות באנגלית (A–Z). הספק נוצר בלי קוד – אפשר לקבוע אותו מאוחר יותר.'); code=''; }
+  if(code && !VENDOR_CODE_RE.test(code)){ alert('הקוד חייב להיות 2 עד 6 אותיות באנגלית (A–Z). הספק נוצר בלי קוד – אפשר לקבוע אותו מאוחר יותר.'); code=''; }
   const trip=activeTrip(); const v=newVendor(name.trim()||'ספק חדש', code);
   if(code){ state.vendorCodes=state.vendorCodes||{}; state.vendorCodes[v.name]=code; }   // remember for future trips
   trip.vendors.push(v); trip.activeId=v.id; save(); render();
@@ -945,10 +947,10 @@ function renameVendor(id){
 }
 function setVendorCode(id){
   const v=activeTrip().vendors.find(x=>x.id===id); if(!v) return;
-  let code=prompt('קוד הספק – בדיוק 2 אותיות באנגלית גדולות (למשל: PD).\nממנו נוצרות הסריות אוטומטית בכל הוספת שורה (PD-01, PD-02 ...):', vendorCode(v));
+  let code=prompt('קוד הספק – 2 עד 6 אותיות באנגלית גדולות (למשל: PD או GEMS).\nממנו נוצרות הסריות אוטומטית בכל הוספת שורה (PD-01, PD-02 ...):', vendorCode(v));
   if(code===null) return;
   code=code.trim().toUpperCase();
-  if(!/^[A-Z]{2}$/.test(code)){ alert('הקוד חייב להיות בדיוק 2 אותיות באנגלית (A–Z).'); return; }
+  if(!VENDOR_CODE_RE.test(code)){ alert('הקוד חייב להיות 2 עד 6 אותיות באנגלית (A–Z).'); return; }
   v.code=code; state.vendorCodes=state.vendorCodes||{}; state.vendorCodes[v.name]=code;   // remember per vendor name, for every trip
   if(confirm('למספר מחדש את כל הסריות בטבלה לפי הקוד '+code+'?\n\nאישור = '+code+'-01, '+code+'-02 ... (לפי הסדר)\nביטול = רק שורות חדשות שתוסיף יקבלו סריה')){
     let n=1; v.rows.forEach(r=>{ r.serial=makeSerial(code,n++); });
@@ -1071,7 +1073,7 @@ function cellText(c,ss){
    RG, DN, YS and MS). Each code becomes its own vendor tab, named
    after the code; rows with no code stay under the sheet's own name. */
 /* "RM-01" / "rm 1" / "RM01" -> "RM";  a serial without a code -> "" */
-function serialCode(s){ const m=String(s||'').trim().match(/^([A-Za-z]{1,4})[\s\-\u2013\u2014_.\/]*\d/); return m?m[1].toUpperCase():''; }
+function serialCode(s){ const m=String(s||'').trim().match(/^([A-Za-z]{1,6})[\s\-\u2013\u2014_.\/]*\d/); return m?m[1].toUpperCase():''; }
 /* split a sheet's rows into one bucket per code, keeping the original order */
 function groupRowsByCode(rows){
   const order=[], by=Object.create(null);
@@ -1144,7 +1146,7 @@ async function importXLSX(ev){
     // one vendor tab per code, named after the code (RM, RG, DN ...)
     const vendors=planImportVendors(found).map(g=>{
       const v={id:rid('v'), name:g.name, rows:g.rows};
-      if(/^[A-Z]{2}$/.test(g.code)) v.code=g.code;
+      if(VENDOR_CODE_RE.test(g.code)) v.code=g.code;
       return v;
     });
 
@@ -2169,7 +2171,7 @@ function buildGuide(){
   `,'tabs')}
 
   ${guideStep(4,'קוד ספק וסריות אוטומטיות',`
-    <p>לכל ספק יש <b>קוד</b> – שתי אותיות באנגלית שמופיעות כתווית צבעונית ליד שמו (למשל פינק = <b>PD</b>). מהקוד נוצרות <b>הסריות אוטומטית</b>: PD-01, PD-02, PD-03 וכן הלאה – מספר רץ נפרד לכל ספק.</p>
+    <p>לכל ספק יש <b>קוד</b> – 2 עד 6 אותיות באנגלית שמופיעות כתווית צבעונית ליד שמו (למשל פינק = <b>PD</b>). מהקוד נוצרות <b>הסריות אוטומטית</b>: PD-01, PD-02, PD-03 וכן הלאה – מספר רץ נפרד לכל ספק.</p>
     <ul>
       <li>הספקים הקבועים כבר מגיעים עם קוד: גדי = GD, פינק = PD, מזרחי = RM, שפירא = MS.</li>
       <li>לקביעה או שינוי לוחצים <b>🏷️ קוד ספק</b>. אפשר גם למספר מחדש את כל הסריות בטבלה לפי הקוד.</li>
