@@ -32,6 +32,9 @@ async function connect() {
 }
 // close the Android app completely and open it again from the launcher
 async function restartApp() {
+  // he leaves the app (Home), and Android later kills it in the background
+  adb('shell input keyevent KEYCODE_HOME');
+  await new Promise((r) => setTimeout(r, 4000));
   adb('shell am force-stop com.android.chrome');
   adb(`shell am start -W -n ${APP} -d ${BRANCH_URL}`);
   await new Promise((r) => setTimeout(r, 8000));
@@ -96,7 +99,9 @@ test('a certificate photo is added from the phone and kept', async () => {
 test('backup saves a file into the phone\'s Downloads', async () => {
   const page = await connect();
   const before = adb('shell ls /sdcard/Download/ 2>/dev/null || true');
-  await page.evaluate(() => backupJSON());
+  // a real tap on the menu button, as Chrome only allows a download from a user action
+  await page.evaluate(() => document.body.classList.add('menu-open'));
+  await page.getByRole('button', { name: '💾 גיבוי הכל' }).click();
   await new Promise((r) => setTimeout(r, 4000));
   shot('06-backup');
   // Chrome may ask to confirm a download; accept it if it does
@@ -106,6 +111,7 @@ test('backup saves a file into the phone\'s Downloads', async () => {
     await new Promise((r) => setTimeout(r, 3000));
   }
   const after = adb('shell ls /sdcard/Download/ || true');
+  if (!/gemstones_backup_/.test(after)) console.log('screen after backup:', screenText().match(/text="[^"]+"/g));
   expect(after, `Downloads before: ${before}`).toMatch(/gemstones_backup_\d{4}-\d{2}-\d{2}.*\.json/);
   await backToApp();
 });
@@ -152,6 +158,7 @@ test('the PC and the Android app share their data through Drive', async () => {
   phone.on('dialog', (d) => d.accept());
   await phone.evaluate((k) => localStorage.removeItem(k), STORAGE_KEY);
   await phone.reload();
+  console.log('phone fake Drive:', await phone.evaluate(() => ({ shared: typeof window.__driveShared, fake: !!window.__drive, url: location.href })));
   await phone.evaluate(() => connectDrive());
   await expect(phone.locator('tbody tr').first().locator('input.num').first()).toHaveValue('7.5');
   shot('09-phone-got-pc-data');
