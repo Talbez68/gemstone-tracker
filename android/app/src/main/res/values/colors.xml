@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- same as manifest.json -->
+    <color name="themeColor">#0f7b6c</color>
+    <color name="backgroundColor">#f4f1ea</color>
+</resources>

@@ -1,0 +1,54 @@
+plugins {
+    id 'com.android.application'
+}
+
+// The app is a Trusted Web Activity: it opens the same web app the PC uses,
+// on the same origin, so Drive sync (and the data in gemstones.json) is shared.
+def launchUrl = 'https://talbez68.github.io/gemstone-tracker/gemstone-tracker.html'
+
+// Signing comes from CI secrets (see android/README.md). Without them the
+// release build is left unsigned and CI builds a debug APK instead.
+def keystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
+
+android {
+    namespace 'com.talbez68.gemstonetracker'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.talbez68.gemstonetracker'
+        minSdk 21
+        targetSdk 35
+        // every CI run is a newer version, so the phone installs it as an update
+        versionCode (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+        versionName '1.0.' + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+
+        resValue 'string', 'launchUrl', launchUrl
+    }
+
+    signingConfigs {
+        if (keystorePath) {
+            release {
+                storeFile file(keystorePath)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (keystorePath) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}

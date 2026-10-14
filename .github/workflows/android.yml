@@ -1,0 +1,81 @@
+name: Android app
+
+# Builds the Android app (a Trusted Web Activity around the web app) on every
+# PR that touches it, and on main publishes the signed APK as the
+# "android-latest" release, so the phone can always download the newest one.
+on:
+  pull_request:
+    paths: ['android/**', '.github/workflows/android.yml']
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode signing key
+        id: key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "path=$RUNNER_TEMP/release.jks" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret – building a debug APK instead (see android/README.md)."
+          fi
+
+      - name: Build signed release APK
+        if: steps.key.outputs.path != ''
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ steps.key.outputs.path }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk gemstone-tracker.apk
+
+      - name: Build debug APK
+        if: steps.key.outputs.path == ''
+        run: |
+          ./gradlew --no-daemon assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk gemstone-tracker.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gemstone-tracker-apk
+          path: android/gemstone-tracker.apk
+
+      - name: Publish as the android-latest release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.key.outputs.path != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-latest --yes --cleanup-tag || true
+          gh release create android-latest gemstone-tracker.apk \
+            --title "Android app (latest)" \
+            --notes "Built from ${GITHUB_SHA::7}. Open this page on the phone and tap gemstone-tracker.apk to install or update." \
+            --target "$GITHUB_SHA"

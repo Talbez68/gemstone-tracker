@@ -79,7 +79,16 @@ syncs by itself, through a single `gemstones.json` in his own Drive.
 > landed: it was built on the File System Access API, which no mobile browser
 > implements, so it could never include his phone.
 
+## 📱 Android app
+An installable Android app lives in [`android/`](android/README.md). It's a Trusted
+Web Activity: it opens this same web app full-screen, on the same web address, so
+Drive sync works unchanged and the phone and PC share one `gemstones.json`. On
+the phone, install `gemstone-tracker.apk` from the
+[android-latest release](https://github.com/Talbez68/gemstone-tracker/releases/tag/android-latest),
+then sign in to Drive with the same Google account as the PC.
+
 ## Files
 - `gemstone-tracker.html` — the entire app (open this).
+- `android/` — the Android app wrapper and how to build/install it.
 - `original_template.xlsx` — his original Excel, kept locally for reference only
   (git-ignored; not committed).

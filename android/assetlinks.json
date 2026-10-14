@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.talbez68.gemstonetracker",
+      "sha256_cert_fingerprints": ["68:B0:10:15:D8:C7:A7:5B:59:20:38:97:BA:DD:C7:F2:14:9C:E5:4A:D0:C0:15:57:B1:39:68:0F:FD:7B:99:B0"]
+    }
+  }
+]
