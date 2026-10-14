@@ -24,7 +24,12 @@ async function connect() {
     try { browser = await chromium.connectOverCDP('http://127.0.0.1:9222'); break; }
     catch { await new Promise((r) => setTimeout(r, 1000)); }
   }
-  if (!browser) throw new Error('could not reach Chrome on the device');
+  if (!browser) {
+    console.log('no devtools. top:', topActivity(), 'chrome pid:', adb('shell pidof com.android.chrome || true').trim());
+    console.log('screen:', (screenText().match(/text="[^"]+"/g) || []).join(' '));
+    console.log('sockets:', adb("shell cat /proc/net/unix | grep devtools || true"));
+    throw new Error('could not reach Chrome on the device');
+  }
   for (let i = 0; i < 30; i++) {
     const page = browser.contexts().flatMap((c) => c.pages()).find((p) => p.url().startsWith(BRANCH_URL));
     if (page) { page.setDefaultTimeout(30_000); return page; }
@@ -38,12 +43,16 @@ async function connect() {
 }
 // close the Android app completely and open it again from the launcher
 async function restartApp() {
-  // he leaves the app (Home), and Android later kills it in the background
+  // he leaves the app (Home), Android reclaims Chrome's memory in the background,
+  // and later he opens the app again
   adb('shell input keyevent KEYCODE_HOME');
   await new Promise((r) => setTimeout(r, 4000));
-  adb('shell am force-stop com.android.chrome');
-  adb(`shell am start -W -n ${APP} -d ${BRANCH_URL}`);
+  adb('shell am kill com.android.chrome');
+  await new Promise((r) => setTimeout(r, 2000));
+  console.log('chrome pid after kill:', JSON.stringify(adb('shell pidof com.android.chrome || true').trim()));
+  console.log(adb(`shell am start -W -n ${APP} -d ${BRANCH_URL}`));
   await new Promise((r) => setTimeout(r, 8000));
+  console.log('top after relaunch:', topActivity());
   return connect();
 }
 const stored = (page) => page.evaluate((k) => JSON.parse(localStorage.getItem(k)), STORAGE_KEY);
