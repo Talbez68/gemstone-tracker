@@ -19,8 +19,8 @@ android {
         minSdk 21
         targetSdk 35
         // every CI run is a newer version, so the phone installs it as an update
-        versionCode (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
-        versionName '1.0.' + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+        versionCode = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int
+        versionName = '1.0.' + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
 
         resValue 'string', 'launchUrl', launchUrl
     }
