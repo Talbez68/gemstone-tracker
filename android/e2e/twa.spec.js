@@ -13,7 +13,9 @@ const adb = (cmd) => execSync(`adb ${cmd}`, { encoding: 'utf8', maxBuffer: 64 <<
 const shot = (name) => { try { fs.writeFileSync(`${OUT}/${name}.png`, execSync('adb exec-out screencap -p')); } catch {} };
 const topActivity = () => adb('shell dumpsys activity activities').split('\n')
   .find((l) => /topResumedActivity|mResumedActivity/.test(l)) || '';
-const screenText = () => { adb('shell uiautomator dump /sdcard/ui.xml'); return adb('shell cat /sdcard/ui.xml'); };
+// uiautomator can't dump while something animates (e.g. a download snackbar)
+const screenText = () => { try { adb('shell uiautomator dump /sdcard/ui.xml'); return adb('shell cat /sdcard/ui.xml'); } catch { return ''; } };
+const downloads = () => adb('shell ls /sdcard/Download/ 2>/dev/null || true');
 
 let browser;
 async function connect() {
@@ -130,7 +132,7 @@ test('backup saves a file into the phone\'s Downloads', async () => {
   // a real tap on the menu button, as Chrome only allows a download from a user action
   await page.evaluate(() => document.body.classList.add('menu-open'));
   await page.getByRole('button', { name: '💾 גיבוי הכל' }).click();
-  await new Promise((r) => setTimeout(r, 4000));
+  for (let i = 0; i < 15 && !/gemstones_backup_/.test(downloads()); i++) await new Promise((r) => setTimeout(r, 1000));
   shot('06-backup');
   // Chrome may ask to confirm a download; accept it if it does
   if (/Download|הורד/.test(screenText()) && !/gemstones_backup_/.test(adb('shell ls /sdcard/Download/ || true'))) {
