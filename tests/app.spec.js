@@ -344,6 +344,52 @@ test.describe('Gemstone tracker', () => {
     expect(errors, 'no console/page errors during import').toEqual([]);
   });
 
+  test('a vendor code can be longer than 2 letters, and new rows follow it', async ({ page }) => {
+    const errors = trackErrors(page);
+    await seed(page);
+    await page.goto(APP_URL);
+
+    // too long is still refused (alert), and the old code stays
+    const answers = ['GEMSTONE', 'gems'];
+    const seen = [];
+    page.on('dialog', (d) => {
+      seen.push(d.type());
+      if (d.type() === 'prompt') return d.accept(answers.shift());
+      if (d.type() === 'confirm') return d.accept();   // renumber the existing rows
+      return d.accept();
+    });
+    const codeBtn = page.locator('.vendor-actions button').first();
+    await codeBtn.click();
+    expect(seen).toEqual(['prompt', 'alert']);
+    await expect(page.locator('.vcode-badge').first()).toHaveText('AB');
+
+    await codeBtn.click();
+    await expect(page.locator('.vcode-badge').first()).toHaveText('GEMS');
+    await page.locator('.btn-add').click();
+
+    const serials = () => page.evaluate((key) => {
+      const s = JSON.parse(localStorage.getItem(key));
+      return s.trips[0].vendors[0].rows.map((r) => r.serial);
+    }, STORAGE_KEY);
+    await expect.poll(serials).toEqual(['GEMS-01', 'GEMS-02']);
+    expect(errors, 'no console/page errors').toEqual([]);
+  });
+
+  test('Excel import keeps codes longer than 2 letters', async ({ page }) => {
+    await seed(page);
+    await page.goto(APP_URL);
+    const xlsx = buildXlsx([
+      { name: 'Elul', rows: [['1', 'ELUL-01', '1'], ['2', 'ELUL-02', '2'], ['3', 'GD-01', '1.5']] },
+    ]);
+    page.on('dialog', (d) => d.accept('נסיעה מיובאת'));
+    await page.setInputFiles('input[type=file][accept=".xlsx"]', { name: 'long.xlsx', mimeType: XLSX_MIME, buffer: xlsx });
+    const codes = () => page.evaluate((key) => {
+      const s = JSON.parse(localStorage.getItem(key));
+      return s.trips.find((t) => t.id === s.activeTripId)?.vendors.map((v) => v.code);
+    }, STORAGE_KEY);
+    await expect.poll(codes).toEqual(['ELUL', 'GD']);
+  });
+
   test('already-imported float noise is cleaned up on load', async ({ page }) => {
     await page.addInitScript((key) => {
       const row = (over) => ({ serial: 'AB-01', weight: '', stones: '1', shape: '', cost: '', cert: '', notes: '', ...over });
