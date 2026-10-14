@@ -1161,8 +1161,11 @@ async function importXLSX(ev){
 
 function download(content,name,type){
   const blob=new Blob([content],{type}); const url=URL.createObjectURL(blob);
-  const a=document.createElement('a'); a.href=url; a.download=name; a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  // Chrome on Android reads the file after the click returns: the link has to be in the
+  // page, and the blob has to outlive the download, or it reports "download failed"
+  const a=document.createElement('a'); a.href=url; a.download=name; a.style.display='none';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
 function today(){ return new Date().toISOString().slice(0,10); }
 function escapeHtml(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -1767,6 +1770,9 @@ function toggleMenu(){
   }
 }
 function closeDrawer(){ document.body.classList.remove('menu-open'); }   // close the mobile drawer (no effect on desktop)
+// on a phone, any action picked from the drawer (backup, print, import …) puts the drawer away first,
+// so he lands on the screen it acted on instead of a menu still covering it
+$('sideMenu').addEventListener('click',e=>{ if(e.target.closest('.menu-item, #driveUI button')) closeDrawer(); },true);
 let guideBuilt=false;
 let currentView='tracker';
 function showView(view){            // 'tracker' | 'preview' | 'stats' | 'ship' | 'history' | 'guide'
