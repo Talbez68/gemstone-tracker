@@ -25,8 +25,13 @@ adb install -r android/gemstone-tracker.apk || exit 1
 adb shell am start -W -n "$APP"
 sleep 20
 echo "--- top activity after launch"; top | tee "$OUT/launch-activity.txt"
+# the live site comes over the network; give it up to a minute to draw
+for i in $(seq 12); do
+  ui > "$OUT/01-launch-live.xml"
+  grep -q 'מעקב אבני חן' "$OUT/01-launch-live.xml" && break
+  sleep 5
+done
 shot 01-launch-live
-ui > "$OUT/01-launch-live.xml"
 
 # 2. the same app, pointed at this branch's copy of the web app, so the tests
 #    exercise the code in this PR. localhost keeps it a secure origin (Drive needs that).

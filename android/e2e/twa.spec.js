@@ -31,6 +31,10 @@ async function connect() {
     console.log('sockets:', adb("shell cat /proc/net/unix | grep devtools || true"));
     throw new Error('could not reach Chrome on the device');
   }
+  // Playwright redirects downloads to a folder on the CI machine, which doesn't
+  // exist on the phone; give downloads back to Chrome, as on a real phone
+  const cdp = await browser.newBrowserCDPSession();
+  await cdp.send('Browser.setDownloadBehavior', { behavior: 'default' }).catch((e) => console.log('download behavior:', e.message));
   for (let i = 0; i < 30; i++) {
     const page = browser.contexts().flatMap((c) => c.pages()).find((p) => p.url().startsWith(BRANCH_URL));
     if (page) { page.setDefaultTimeout(30_000); return page; }
