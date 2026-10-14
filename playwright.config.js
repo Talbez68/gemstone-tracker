@@ -18,5 +18,8 @@ export default defineConfig({
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    // The Android app runs this same page in Chrome on the phone, so the whole
+    // suite runs again as a phone: small touch screen, mobile Chrome user agent.
+    { name: 'android', use: { ...devices['Pixel 7'] } },
   ],
 });

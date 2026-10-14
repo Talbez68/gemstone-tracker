@@ -1765,6 +1765,9 @@ function toggleMenu(){
   }
 }
 function closeDrawer(){ document.body.classList.remove('menu-open'); }   // close the mobile drawer (no effect on desktop)
+// on a phone, any action picked from the drawer (backup, print, import …) puts the drawer away first,
+// so he lands on the screen it acted on instead of a menu still covering it
+$('sideMenu').addEventListener('click',e=>{ if(e.target.closest('.menu-item, #driveUI button')) closeDrawer(); },true);
 let guideBuilt=false;
 let currentView='tracker';
 function showView(view){            // 'tracker' | 'preview' | 'stats' | 'ship' | 'history' | 'guide'
