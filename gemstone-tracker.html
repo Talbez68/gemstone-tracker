@@ -1159,8 +1159,11 @@ async function importXLSX(ev){
 
 function download(content,name,type){
   const blob=new Blob([content],{type}); const url=URL.createObjectURL(blob);
-  const a=document.createElement('a'); a.href=url; a.download=name; a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  // Chrome on Android reads the file after the click returns: the link has to be in the
+  // page, and the blob has to outlive the download, or it reports "download failed"
+  const a=document.createElement('a'); a.href=url; a.download=name; a.style.display='none';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
 function today(){ return new Date().toISOString().slice(0,10); }
 function escapeHtml(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }

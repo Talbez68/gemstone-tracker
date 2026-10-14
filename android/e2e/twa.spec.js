@@ -171,7 +171,8 @@ test('the PC and the Android app share their data through Drive', async () => {
   await phone.exposeFunction('__driveShared', share);
   await stubDrive(phone, null);
   phone.on('dialog', (d) => d.accept());
-  await phone.evaluate((k) => localStorage.removeItem(k), STORAGE_KEY);
+  // the phone starts from nothing (the app re-saves on unload, so clear it before it loads)
+  await phone.addInitScript((k) => { if (!sessionStorage.getItem('__wiped')) { sessionStorage.setItem('__wiped', '1'); localStorage.removeItem(k); } }, STORAGE_KEY);
   await phone.reload();
   console.log('phone fake Drive:', await phone.evaluate(() => ({ shared: typeof window.__driveShared, fake: !!window.__drive, url: location.href })));
   await phone.evaluate(() => connectDrive());
