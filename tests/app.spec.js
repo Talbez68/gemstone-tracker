@@ -1087,6 +1087,27 @@ test.describe('Google Drive sync', () => {
     await expect(page.locator('#rstOverlay')).not.toContainText('לא הצלחנו לקרוא את הגיבויים');
   });
 
+  test('restoring a backup file wins over Drive, even when Drive looks newer', async ({ page }) => {
+    await seed(page);
+    await stubDrive(page, null);
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    // another device (its clock running ahead) wrote a copy without the vendor
+    await page.evaluate((body) => {
+      const f = Object.values(window.__drive.files).find((x) => x.name === 'gemstones.json');
+      f.body = body; f.modifiedTime = 'other-device';
+    }, JSON.stringify(remoteFile('2099-01-01T00:00:00.000Z', 'ספק מהטלפון')));
+    const backup = remoteFile('2026-10-15T07:56:12.895Z', 'שפירא').state;
+    await page.setInputFiles('input[type=file][accept=".json"]',
+      { name: 'gemstones_backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) });
+    await expect.poll(async () => (await driveBody(page)).state.trips[0].vendors[0].name).toBe('שפירא');
+    await page.waitForTimeout(2500);                         // past the debounced push that used to undo it
+    expect(await vendorNames(page)).toEqual(['שפירא']);
+    await page.reload();                                     // (re-seeds local, so this one comes from Drive)
+    await expect.poll(() => vendorNames(page)).toEqual(['שפירא']);
+  });
+
   test('a local edit is pushed to Drive automatically', async ({ page }) => {
     await seed(page);
     await stubDrive(page, null);
