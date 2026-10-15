@@ -1008,16 +1008,23 @@ function backupJSON(){ download(JSON.stringify(state,null,2),`gemstones_backup_$
 function restoreJSON(ev){
   const f=ev.target.files[0]; if(!f) return;
   const rd=new FileReader();
-  rd.onload=()=>{ try{
-      const s=JSON.parse(rd.result); if(!s.trips&&!s.vendors) throw 0;
-      if(!confirm('שחזור גיבוי ידרוס את כל הנתונים הנוכחיים. להמשיך?')) return;
-      if(s.trips){ state=s; } else { // v1 backup
-        const t={id:rid('t'),name:'נסיעה מיובאת',date:today(),activeId:s.vendors[0]?.id,vendors:s.vendors};
-        state={currency:s.currency||'$',activeTripId:t.id,trips:[t]};
-      }
-      if(!state.activeTripId) state.activeTripId=state.trips[0].id;
-      save(); render(); alert('הגיבוי שוחזר בהצלחה ✓');
-    }catch(e){ alert('הקובץ אינו גיבוי תקין.'); }
+  rd.onload=async()=>{
+    let s;
+    try{ s=JSON.parse(rd.result); if(!s||(!s.trips&&!s.vendors)) throw 0; }
+    catch(e){ alert('הקובץ אינו גיבוי תקין.'); return; }
+    if(!confirm('שחזור גיבוי ידרוס את כל הנתונים הנוכחיים'
+      +(driveOn?' – בכל המכשירים המחוברים לחשבון':'')+'. להמשיך?')) return;
+    if(s.trips){ state=migrateRows(s); } else { // v1 backup
+      const t={id:rid('t'),name:'נסיעה מיובאת',date:today(),activeId:s.vendors[0]?.id,vendors:s.vendors};
+      state={currency:s.currency||'$',activeTripId:t.id,trips:[t]};
+    }
+    if(!state.activeTripId) state.activeTripId=state.trips[0]?.id;
+    // Same as restoreSnapshot: the restore has to reach Drive now and unguarded.
+    // Left to the debounced push, the copy in Drive (or another device's next
+    // save) counted as "newer" and was pulled straight back over the restore.
+    save(); render();
+    if(driveOn&&!driveNeedsAuth){ try{ await driveForcePush(); }catch(e){} }
+    alert('הגיבוי שוחזר בהצלחה ✓'+(driveOn?'\nהשחזור נשלח ל‑Drive ויופיע גם במכשירים האחרים.':''));
   };
   rd.readAsText(f); ev.target.value='';
 }
@@ -1404,7 +1411,7 @@ async function restoreSnapshot(day){
   // save() stamps savedAt with now, so this deliberately wins over what is in
   // Drive – the other device pulls the restored data instead of undoing it
   save(); render(); closeRestore(); showView('tracker');
-  if(driveOn){ try{ await drivePush(true); }catch(e){} }
+  if(driveOn){ try{ await driveForcePush(); }catch(e){} }
   alert('שוחזרה הגרסה מ‑'+day+' ✓'+(driveOn?'\nהשחזור נשלח ל‑Drive ויופיע גם במכשירים האחרים.':''));
 }
 
@@ -1644,8 +1651,17 @@ function scheduleDrivePush(){
   if(!driveOn||driveNeedsAuth) return;
   clearTimeout(drivePushTimer); drivePushTimer=setTimeout(()=>drivePush().catch(()=>renderDriveUI('error')),1500);
 }
+/* push our copy over whatever is in Drive, for a deliberate restore. A push
+   already on the way would otherwise make this one a silent no-op. */
+async function driveForcePush(){
+  clearTimeout(drivePushTimer);
+  for(let i=0;driveBusy&&i<150;i++) await new Promise(r=>setTimeout(r,200));
+  await drivePush(true);
+}
 async function drivePush(skipGuard){
-  if(!driveOn||!driveFileId||driveBusy) return; driveBusy=true;
+  if(!driveOn||!driveFileId) return;
+  if(driveBusy){ scheduleDrivePush(); return; }      // try again once the current one is done, rather than dropping this save
+  driveBusy=true;
   try{
     if(!skipGuard&&driveModified){
       const meta=await (await driveFetch('https://www.googleapis.com/drive/v3/files/'+driveFileId+'?fields=modifiedTime')).json();
