@@ -1108,6 +1108,21 @@ test.describe('Google Drive sync', () => {
     await expect.poll(() => vendorNames(page)).toEqual(['שפירא']);
   });
 
+  test('an edit here outranks a Drive copy stamped by a clock running ahead', async ({ page }) => {
+    await seed(page);
+    await stubDrive(page, remoteFile('2099-01-01T00:00:00.000Z', 'ספק מהטלפון'));
+    page.on('dialog', (d) => d.accept());
+    await open(page);
+    await page.evaluate(() => connectDrive());
+    expect(await vendorNames(page)).toEqual(['ספק מהטלפון']);   // the "newer" copy is adopted
+    await page.locator('tbody tr').first().locator('input.num').nth(0).fill('4.2');
+    await expect.poll(async () => (await driveBody(page)).state.trips[0].vendors[0].rows[0].weight).toBe('4.2');
+    expect((await driveBody(page)).savedAt > '2099-01-01T00:00:00.000Z').toBe(true);
+    // a pull from Drive now keeps the edit instead of going back to the old copy
+    await page.evaluate(() => drivePull(true));
+    expect(await page.evaluate(() => state.trips[0].vendors[0].rows[0].weight)).toBe('4.2');
+  });
+
   test('a local edit is pushed to Drive automatically', async ({ page }) => {
     await seed(page);
     await stubDrive(page, null);

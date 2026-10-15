@@ -608,8 +608,18 @@ function load(){
   return defaultState();
 }
 let saveTimer=null;
+/* savedAt decides whose copy is newer in cloud sync. Devices' clocks disagree,
+   so never stamp earlier than any copy we have already seen: a phone whose clock
+   runs ahead would otherwise win over every edit or restore made here. */
+let latestStamp='';
+function seenStamp(t){ if(t&&t>latestStamp&&isFinite(Date.parse(t))) latestStamp=t; }
+function nextStamp(){
+  const now=new Date().toISOString();
+  return now>latestStamp ? now : new Date(Date.parse(latestStamp)+1).toISOString();
+}
 function save(){
-  state.savedAt=new Date().toISOString();      // whose copy is newer, for cloud sync
+  seenStamp(state.savedAt);
+  state.savedAt=nextStamp(); latestStamp=state.savedAt;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   const el=$('saved'); el.classList.add('show');
   clearTimeout(saveTimer); saveTimer=setTimeout(()=>el.classList.remove('show'),1200);
@@ -1014,6 +1024,7 @@ function restoreJSON(ev){
     catch(e){ alert('הקובץ אינו גיבוי תקין.'); return; }
     if(!confirm('שחזור גיבוי ידרוס את כל הנתונים הנוכחיים'
       +(driveOn?' – בכל המכשירים המחוברים לחשבון':'')+'. להמשיך?')) return;
+    seenStamp(state.savedAt);
     if(s.trips){ state=migrateRows(s); } else { // v1 backup
       const t={id:rid('t'),name:'נסיעה מיובאת',date:today(),activeId:s.vendors[0]?.id,vendors:s.vendors};
       state={currency:s.currency||'$',activeTripId:t.id,trips:[t]};
@@ -1406,6 +1417,7 @@ async function restoreSnapshot(day){
   let data=r.local&&r.local.data;
   if(!data){ try{ data=await driveBackupRead(r.drive.id); }catch(e){ alert('לא ניתן לקרוא את הגיבוי מ‑Drive.'); return; } }
   if(!data||!data.trips) return;
+  seenStamp(state.savedAt);
   state=migrateRows(JSON.parse(JSON.stringify(data)));
   if(!state.activeTripId) state.activeTripId=state.trips[0]?.id;
   // save() stamps savedAt with now, so this deliberately wins over what is in
@@ -1644,6 +1656,7 @@ async function drivePull(force){
   driveModified=meta.modifiedTime;
   const remote=txt.trim()?driveUnwrap(txt):null;
   if(!remote){ await drivePush(true); return; }                        // empty/foreign file: seed it
+  seenStamp(remote.savedAt);
   if(!state.savedAt || (remote.savedAt||'')>state.savedAt){ driveAdopt(remote); renderDriveUI('synced'); }
   else if((remote.savedAt||'')<state.savedAt) await drivePush(true);   // ours is newer – put it back
 }
@@ -1669,6 +1682,7 @@ async function drivePush(skipGuard){
         const txt=await (await driveFetch('https://www.googleapis.com/drive/v3/files/'+driveFileId+'?alt=media')).text();
         const remote=txt.trim()?driveUnwrap(txt):null;
         driveModified=meta.modifiedTime;
+        if(remote) seenStamp(remote.savedAt);
         if(remote && (remote.savedAt||'')>(state.savedAt||'')){        // theirs is newer – never clobber it
           driveAdopt(remote); renderDriveUI('synced');
           alert('נטענו נתונים עדכניים יותר ממכשיר אחר ☁️');
